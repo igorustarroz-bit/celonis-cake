@@ -1,0 +1,168 @@
+/* =========================================================================
+   Cake — Enterprise AI recipe page · page-level CSS (v1)
+   Everything that a site block already draws is left to the block's own CSS
+   (secondary-hero, anchor-secondary-menu, text-only, title, collapse-expand,
+   quotes, basic-module, question). This file only:
+     1. places those blocks on this page, and
+     2. draws the three pieces no site block covers (M46 check list,
+        M09 tabs + list, M28 journey), on the site's tokens and 12-col grid.
+   Token note: at ≥1200 px the site's --fnd-typography names are one step
+   above the Figma style names (Figma 32 px = heading-s, 24 = heading-xs,
+   20 = heading-xxs).
+   ========================================================================= */
+
+:root { --cake-pad: var(--fnd-spacing-05); --cake-max: none; }
+@media (width >= 768px)  { :root { --cake-pad: var(--fnd-spacing-07); } }
+@media (width >= 960px)  { :root { --cake-pad: var(--fnd-spacing-08); } }
+@media (width >= 1200px) { :root { --cake-pad: var(--fnd-spacing-09); } }
+@media (width >= 1600px) { :root { --cake-pad: var(--fnd-spacing-10); } }
+@media (width >= 1920px) { :root { --cake-max: calc(1472px + var(--cake-pad) * 2); } }
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+[id] { scroll-margin-top: calc(var(--nav-height, 64px) + var(--anchor-nav-height, 64px)); }
+
+/* boilerplate: main>div{margin:40px 16px} — every section here is full bleed */
+.cake-page > div { margin: 0; }
+.cake-page .anchor-secondary-menu-wrapper { background: var(--fnd-color-always-dark); }
+
+/* Header layering (as experiment 7, solutions.css §23.2–24.3): the header outranks the sticky
+   anchor menu, the menu parks under the measured bar (--cake-nav-h, from cake.js) and moves to
+   the top when nav-fx fades the bar; the header's floating CTA leaves and returns with the bar. */
+.header-wrapper { position: relative; z-index: 11; }
+.cake-page .anchor-secondary-menu-wrapper { top: var(--cake-nav-h, 88px); transition: top .26s cubic-bezier(.4, 0, .2, 1); }
+html[data-cake-nav="hidden"] .cake-page .anchor-secondary-menu-wrapper { top: 0; }
+.header-wrapper a.button.conversion { transition: opacity .22s ease; }
+html[data-cake-nav="hidden"] .header-wrapper a.button.conversion:not(.cloned-cta) { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .cake-page .anchor-secondary-menu-wrapper { transition: none; } }
+
+/* ---------- shared ---------- */
+.cake-grid {
+  display: grid; grid-template-columns: repeat(var(--columns, 4), minmax(0, 1fr)); column-gap: var(--grid-gap);
+  padding-inline: var(--cake-pad); max-width: var(--cake-max); margin-inline: auto; box-sizing: border-box;
+}
+.cake-grid > * { grid-column: 1 / -1; min-width: 0; }
+/* the site's section rule pads/centres every grandchild div — our grid already owns the margins */
+main.cake-page > .section .cake-grid > div:not(.full-width) { padding-inline: 0; margin-inline: 0; max-width: none; }
+.cake-bg-secondary { background-color: var(--fnd-color-background-secondary) !important; }
+.cake-media { margin: 0; border-radius: var(--fnd-radius-m); overflow: hidden; }
+.cake-media img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; }
+
+/* ---------- M15 · secondary-hero: line-art media on the dark hero ---------- */
+.secondary-hero .secondary-hero-media.cake-media-invert img { filter: invert(1); object-fit: contain; background: transparent; width: 100%; }
+.secondary-hero .secondary-hero-title { font-weight: 400; }
+
+/* ---------- M45 · text-only: the second half of the copy stays dim (Figma) ---------- */
+.text-only p:not(.button-container).visible span.cake-dim { animation: none; color: var(--fnd-color-text-transparency-low); }
+.text-only p.cake-text-only-second { margin-top: var(--fnd-typography-heading-s-line-height); }
+@media (width >= 1200px) { .text-only p.cake-text-only-second { margin-top: var(--fnd-typography-heading-s-line-height); } }
+
+/* ---------- M46 · short list ---------- */
+.cake-shortlist { padding-bottom: var(--fnd-spacing-10); }
+.cake-checklist { list-style: none; margin: 0; padding: 0; }
+.cake-checklist li {
+  display: flex; gap: var(--fnd-spacing-04); align-items: flex-start;
+  padding-block: var(--fnd-spacing-07); border-top: 1px solid var(--fnd-color-border-mid);
+  font-size: var(--fnd-typography-heading-xs-font-size); line-height: var(--fnd-typography-heading-xs-line-height); letter-spacing: var(--fnd-typography-heading-xs-letter-spacing);
+  color: var(--fnd-color-text-high);
+}
+.cake-checklist li:last-child { border-bottom: 1px solid var(--fnd-color-border-mid); }
+.cake-checklist .icon { flex: 0 0 24px; width: 24px; height: 24px; margin-top: 4px; color: var(--fnd-color-text-high); }
+.cake-checklist .icon svg { width: 100%; height: 100%; }
+.cake-shortlist__media { margin-top: var(--fnd-spacing-08); background: var(--fnd-color-background-base); }
+@media (width >= 1200px) {
+  .cake-shortlist { padding-bottom: var(--fnd-spacing-12); }
+  .cake-checklist { grid-column: 1 / 7; }
+  .cake-shortlist__media { grid-column: 8 / 13; margin-top: 0; align-self: start; }
+}
+
+/* ---------- M09 · tabs + list ---------- */
+.cake-tabs { padding-block: var(--fnd-spacing-10); }
+.cake-tabs__list { display: flex; align-items: flex-start; gap: var(--fnd-spacing-07); margin-bottom: var(--fnd-spacing-08); border-bottom: 1px solid var(--fnd-color-border-low); }
+.cake-page .cake-tabs__tab {
+  all: unset; cursor: pointer; position: relative; height: 40px; box-sizing: border-box;
+  font-size: var(--fnd-typography-paragraph-xl-font-size); line-height: var(--fnd-typography-paragraph-xl-line-height); color: var(--fnd-color-text-low);
+  transition: color var(--fnd-motion-duration-200) var(--fnd-motion-ease-focused);
+}
+.cake-tabs__tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--fnd-color-border-high); transform: scaleX(0); transform-origin: left; transition: transform var(--fnd-motion-duration-300) var(--fnd-motion-ease-focused); }
+.cake-page .cake-tabs__tab[aria-selected="true"], .cake-page .cake-tabs__tab:hover { color: var(--fnd-color-text-high); }
+.cake-tabs__tab[aria-selected="true"]::after { transform: scaleX(1); }
+.cake-tabs__tab:focus-visible { outline: 2px solid var(--fnd-color-background-accent-green); outline-offset: 4px; }
+.cake-bullets { margin: 0; padding-left: 1.2em; font-size: var(--fnd-typography-heading-xs-font-size); line-height: var(--fnd-typography-heading-xs-line-height); letter-spacing: var(--fnd-typography-heading-xs-letter-spacing); color: var(--fnd-color-text-high); }
+.cake-bullets li::marker { color: var(--fnd-color-text-low); }
+.cake-bullets:not([hidden]) { animation: cake-fade-in var(--fnd-motion-duration-300) var(--fnd-motion-ease-expressive); }
+@keyframes cake-fade-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .cake-bullets:not([hidden]) { animation: none; } }
+@media (width >= 1200px) {
+  .cake-tabs { padding-block: var(--fnd-spacing-12); }
+  .cake-tabs__list { grid-column: 1 / 6; flex-direction: column; gap: var(--fnd-spacing-05); border: 0; margin: 0; padding: 0; }
+  .cake-page .cake-tabs__tab { width: 100%; border-bottom: 1px solid var(--fnd-color-border-low); }
+  .cake-tabs__panels { grid-column: 8 / 13; }
+}
+
+/* ---------- M28 · journey (under the site's title block) ---------- */
+.cake-journey { padding-bottom: var(--fnd-spacing-10); }
+.cake-journey .title-wrapper .title { padding-bottom: var(--fnd-spacing-10); }
+.cake-journey__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--fnd-spacing-08); }
+.cake-journey__list a { display: grid; grid-template-columns: auto 1fr; gap: var(--fnd-spacing-04); color: inherit; text-decoration: none; }
+.cake-journey__num, .cake-journey__name, .cake-journey__desc { font-size: var(--fnd-typography-heading-xxs-font-size); line-height: var(--fnd-typography-heading-xxs-line-height); letter-spacing: var(--fnd-typography-heading-xxs-letter-spacing); }
+.cake-journey__num { color: var(--fnd-color-text-low); }
+.cake-journey__name { color: var(--fnd-color-text-high); }
+.cake-journey__desc { grid-column: 1 / -1; color: var(--fnd-color-text-low); }
+.cake-journey__list a:hover .cake-journey__name { text-decoration: underline; text-underline-offset: 4px; }
+@media (width >= 768px)  { .cake-journey__list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--grid-gap); } }
+@media (width >= 1200px) { .cake-journey { padding-bottom: var(--fnd-spacing-12); } .cake-journey .title-wrapper .title { padding-bottom: var(--fnd-spacing-12); } }
+
+/* ---------- M19 · collapse-expand on the 12-col grid ---------- */
+.cake-steps .collapse-expand { padding: var(--fnd-spacing-11) var(--cake-pad); max-width: var(--cake-max); margin-inline: auto; box-sizing: border-box; }
+.cake-steps .collapse-expand > :first-child h2 { margin: 0; font-weight: 400; }
+.cake-steps .collapse-expand > :first-child p { margin: 0; }
+.cake-steps .collapse-expand img { object-fit: contain; position: static; }
+.cake-steps .accordion-item-summary { display: flex; align-items: center; justify-content: space-between; list-style: none; }
+.cake-steps .accordion-item-summary p { flex: 1; }
+@media (width >= 1200px) {
+  .cake-steps .collapse-expand {
+    padding-block: var(--fnd-spacing-12);
+    grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: auto 1fr;
+    grid-template-areas: none; column-gap: var(--grid-gap); row-gap: var(--fnd-spacing-08);
+  }
+  .cake-steps .collapse-expand > :first-child { grid-area: 1 / 1 / 2 / 6; }
+  .cake-steps .collapse-expand > :nth-child(2) { grid-area: 2 / 1 / 3 / 6; align-self: start; }
+  .cake-steps .collapse-expand > .accordion { grid-area: 1 / 7 / 3 / 13; }
+  .cake-steps .collapse-expand.align-right { row-gap: var(--fnd-spacing-09); }
+  .cake-steps .collapse-expand.align-right > :first-child { grid-area: 1 / 1 / 2 / 7; }
+  .cake-steps .collapse-expand.align-right > :first-child div { display: block; }
+  .cake-steps .collapse-expand.align-right > .accordion { grid-area: 2 / 1 / 3 / 7; }
+  .cake-steps .collapse-expand.align-right > :nth-child(2) { grid-area: 2 / 8 / 3 / 13; }
+  .cake-steps .collapse-expand > :nth-child(2) figure { position: sticky; top: calc(var(--nav-height, 64px) + var(--anchor-nav-height, 64px) + var(--fnd-spacing-07)); }
+}
+
+/* ---------- M25 · quote ---------- */
+.cake-quote .quotes ul .quote-slide { padding-inline: var(--cake-pad); max-width: var(--cake-max); margin-inline: auto; flex: 1; }
+.cake-quote .p-name { display: flex; gap: var(--fnd-spacing-02); align-items: baseline; }
+.cake-quote .p-name::before { content: ""; flex: 0 0 12px; height: 12px; border-radius: var(--fnd-radius-s); background: var(--fnd-color-background-accent-green); transform: translateY(1px); }
+.cake-quote .quotes ul .p-quote.cake-quote__text { mix-blend-mode: normal; height: auto; -webkit-line-clamp: unset; display: block; overflow: visible; margin-top: var(--fnd-spacing-11); color: var(--fnd-color-text-high); }
+.cake-quote .quotes ul .p-quote span { display: inline; }
+.cake-quote .quotes ul .p-quote .cake-quote__hi { opacity: 1; }
+.cake-quote .quotes ul .p-quote .cake-quote__lo { opacity: .4; }
+@media (width >= 1200px) { .cake-quote .quotes ul .p-quote.cake-quote__text { grid-column: 1 / 11; margin-top: 136px; } }
+
+/* ---------- M08 · basic-module: grid the two columns like the Figma (6 + 5 cols) ---------- */
+.basic-module-container .basic-module { padding-inline: var(--cake-pad); max-width: var(--cake-max); margin-inline: auto; box-sizing: border-box; }
+.basic-module__col--right p + p { margin-top: var(--fnd-typography-heading-xxs-line-height); }
+.basic-module__col--right strong { font-weight: 600; }
+@media (width >= 1200px) {
+  .basic-module-container .basic-module > div:not(.fragment-wrapper) { grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--grid-gap); grid-template-areas: none; }
+  .basic-module-container .basic-module > div > .basic-module__heading--left { grid-area: 1 / 1 / 2 / 7; }
+  .basic-module-container .basic-module > div > .basic-module__col--right { grid-area: 1 / 8 / 2 / 13; width: auto; }
+  .basic-module-container .basic-module__heading--left .basic-module__subtitle { margin-block-end: 0; }
+}
+
+/* nav-fx's cloned CTA is placed for the 88 px bar (top: 24px); here it rides on the 64 px anchor
+   menu once the bar has faded, so centre it on that bar instead. */
+@media (width >= 1200px) { html[data-cake-nav="hidden"] .header .cloned-cta { top: calc((var(--anchor-nav-height, 64px) - 40px) / 2); } }
+
+/* The block clamps the hero copy to 4 lines; on phones that cut the Figma copy mid-sentence. */
+.secondary-hero .secondary-hero-body-copy { -webkit-line-clamp: unset; display: block; }
+/* basic-module on phones: room between the heading pair and the copy */
+@media (width < 1200px) { .basic-module-container .basic-module__heading--left { margin-bottom: var(--fnd-spacing-08); } }

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Vibecoding prototypes — Enterprise AI recipe, illustration versions (unofficial)</title>
+<meta name="description" content="Unofficial design prototypes by Hanzo. Not official pages of the brand shown, and not published or endorsed by them.">
+<link rel="stylesheet" href="cake/css/poppins.css">
+<style>
+  :root { --bg:#000; --panel:#101010; --line:#232323; --text:#f5f5f5; --muted:#9a9a9a; --accent:#7CF77E; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:Poppins, ui-sans-serif, system-ui, sans-serif; min-height:100vh; display:flex; flex-direction:column; }
+  header, .wrap, main { max-width:980px; margin:0 auto; width:100%; }
+  header { padding:48px 24px 8px; }
+  .brand { font-size:26px; font-weight:500; letter-spacing:.5px; }
+  .brand small { display:block; color:var(--muted); font-size:14px; font-weight:300; margin-top:6px; }
+  .wrap { padding:8px 24px 0; }
+  .disclaimer { margin:0 0 4px; padding:14px 24px; border:1px solid #3a3a3a; border-left:3px solid var(--accent); border-radius:10px; background:#0e0e0e; color:#bdbdbd; font-size:13px; line-height:1.6; font-weight:300; }
+  .disclaimer strong { color:var(--accent); font-weight:600; }
+  main { padding:24px; display:grid; gap:20px; }
+  .exp { position:relative; border:1px solid var(--line); background:var(--panel); border-radius:14px; padding:26px 28px; transition:border-color .2s ease, transform .2s ease; }
+  .exp:hover { border-color:#3a3a3a; transform:translateY(-2px); }
+  .exp .date { position:absolute; top:22px; right:26px; padding:5px 11px; border:1px solid #2b2b2b; border-radius:999px; background:#050505; color:#8a8a8a; font-size:11.5px; letter-spacing:.6px; white-space:nowrap; }
+  @media (max-width:560px) { .exp .date { position:static; display:inline-block; margin-bottom:10px; } }
+  .exp .num { color:var(--accent); font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; }
+  .exp h2 { margin:8px 0 6px; font-size:22px; font-weight:500; }
+  .exp p { margin:0 0 18px; color:var(--muted); font-size:14.5px; line-height:1.55; font-weight:300; }
+  .thumbs { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:8px; margin:0 0 18px; }
+  .thumbs figure { margin:0; background:#fff; border-radius:6px; aspect-ratio:4/3; overflow:hidden; }
+  .thumbs img, .thumbs video { width:100%; height:100%; object-fit:contain; display:block; }
+  .thumbs video { object-fit:cover; }
+  .thumbs figcaption { display:none; }
+  .links { display:flex; flex-wrap:wrap; gap:10px; }
+  .links a { display:inline-block; padding:9px 18px; border-radius:8px; background:var(--accent); color:#000; text-decoration:none; font-size:14px; font-weight:500; }
+  .links a:hover { filter:brightness(1.12); }
+  .links a.alt { background:transparent; color:var(--text); border:1px solid var(--line); }
+  .links a.alt:hover { border-color:var(--accent); color:var(--accent); }
+  footer { margin-top:auto; padding:32px 24px 40px; text-align:center; color:#666; font-size:12.5px; font-weight:300; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Enterprise AI recipe <span style="color:var(--accent)">/ illustration versions</span>
+    <small>Replacement for Process Intelligence 101 — one template, several sets of illustrations</small>
+  </div>
+</header>
+<div class="wrap">
+  <p class="disclaimer"><strong>Unofficial prototype.</strong> Front-end design experiments by Hanzo exploring
+  improvements to a client website. This is not an official page of the brand shown, it is not published or
+  endorsed by them, and it is not a working product. Every outbound link is disabled, no data is collected and
+  no third-party scripts run. All trademarks belong to their respective owners.</p>
+</div>
+<main>
+  <article class="exp">
+    <div class="num">Template</div>
+    <h2>The page template</h2>
+    <p>The approved Figma built with the site's own blocks. Every version below is a copy of this page with its own illustrations.</p>
+    <div class="links"><a class="alt" href="cake/index.html" target="_blank" rel="noopener">Open template</a></div>
+  </article>
+  <article class="exp">
+    <span class="date">Nov 18, 2026</span>
+    <div class="num">Version 1</div>
+    <h2>Original line illustrations (PNG)</h2>
+    <p>Baseline: the four static line drawings from illustrations/original, as delivered. The reference every new set is compared against.</p>
+    <div class="thumbs"><figure><img src="cake/versions/original-png/img/hero.png" alt="" loading="lazy"><figcaption>hero</figcaption></figure><figure><img src="cake/versions/original-png/img/shortlist.png" alt="" loading="lazy"><figcaption>shortlist</figcaption></figure><figure><img src="cake/versions/original-png/img/step-1.png" alt="" loading="lazy"><figcaption>step-1</figcaption></figure><figure><img src="cake/versions/original-png/img/step-2.png" alt="" loading="lazy"><figcaption>step-2</figcaption></figure><figure><img src="cake/versions/original-png/img/step-3.png" alt="" loading="lazy"><figcaption>step-3</figcaption></figure></div>
+    <div class="links"><a href="cake/versions/original-png/index.html" target="_blank" rel="noopener">Open version</a></div>
+  </article>
+  <article class="exp">
+    <span class="date">Nov 18, 2026</span>
+    <div class="num">Version 2</div>
+    <h2>Evolved line animation (video)</h2>
+    <p>George&#x27;s full cake animation (cake-ascent-30s) cut into chapters, one per slot. Hero: the whole 30 s on the dark hero. Step 1 (0-10 s): the data point and data frame. Step 2 (10-17 s): the layers stacking. Step 3 (17-23 s): the AI frosting dropping onto the top tier. Shortlist (23-30 s): the finished cake. Clips on white modules are colour-inverted in the file. Tuner: press T.</p>
+    <div class="thumbs"><figure><video src="cake/versions/evolved-video/img/hero.mp4" poster="cake/versions/evolved-video/img/hero.jpg" muted loop playsinline preload="none"></video><figcaption>hero</figcaption></figure><figure><video src="cake/versions/evolved-video/img/shortlist.mp4" poster="cake/versions/evolved-video/img/shortlist.jpg" muted loop playsinline preload="none"></video><figcaption>shortlist</figcaption></figure><figure><video src="cake/versions/evolved-video/img/step-1.mp4" poster="cake/versions/evolved-video/img/step-1.jpg" muted loop playsinline preload="none"></video><figcaption>step-1</figcaption></figure><figure><video src="cake/versions/evolved-video/img/step-2.mp4" poster="cake/versions/evolved-video/img/step-2.jpg" muted loop playsinline preload="none"></video><figcaption>step-2</figcaption></figure><figure><video src="cake/versions/evolved-video/img/step-3.mp4" poster="cake/versions/evolved-video/img/step-3.jpg" muted loop playsinline preload="none"></video><figcaption>step-3</figcaption></figure></div>
+    <div class="links"><a href="cake/versions/evolved-video/index.html" target="_blank" rel="noopener">Open version</a></div>
+  </article>
+</main>
+<script>
+  // video thumbs play on hover only
+  document.querySelectorAll('.thumbs video').forEach(function (v) {
+    var f = v.parentNode;
+    f.addEventListener('mouseenter', function () { var p = v.play(); if (p && p.catch) p.catch(function () {}); });
+    f.addEventListener('mouseleave', function () { v.pause(); });
+  });
+</script>
+<footer>Generated by <code>cake/make-version.py index</code> — do not edit by hand.</footer>
+</body>
+</html>

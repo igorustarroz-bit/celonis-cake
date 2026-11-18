@@ -1,0 +1,32 @@
+/* =========================================================================
+   Cake — evolved video illustrations (versions whose slots are .mp4).
+
+   The source is white line art on black. Clips for light modules are
+   inverted IN THE FILE (ffmpeg `negate`, black line art on pure white) and
+   multiplied, so their white melts into the module background; the dark
+   hero clip is as delivered and screened, so its black melts into the hero. Every value is a custom property the video
+   tuner (js/cake-video.js, key T) writes on :root.
+
+   Only loaded by version pages that carry a video (make-version.py adds the
+   link). The template never loads it.
+   ========================================================================= */
+:root {
+  --cv-contrast: 1; --cv-brightness: 1;
+  --cv-fit: contain; --cv-aspect: 4 / 3;
+  --cv-blend-light: multiply; --cv-blend-dark: screen;
+}
+video.cake-video {
+  display: block; width: 100%; height: auto; background: transparent;
+  aspect-ratio: var(--cv-aspect); object-fit: var(--cv-fit);
+}
+.cake-media video.cake-video,
+.cake-steps .collapse-expand video.cake-video {
+  filter: contrast(var(--cv-contrast)) brightness(var(--cv-brightness));
+  mix-blend-mode: var(--cv-blend-light);
+  object-fit: var(--cv-fit); aspect-ratio: var(--cv-aspect); position: static;
+}
+.secondary-hero .secondary-hero-media video.cake-video {
+  filter: contrast(var(--cv-contrast)) brightness(var(--cv-brightness));
+  mix-blend-mode: var(--cv-blend-dark);
+  object-fit: var(--cv-fit); aspect-ratio: var(--cv-aspect); width: 100%;
+}
