@@ -16,6 +16,10 @@ Usage (run from the celonis_cake folder):
       running `new` (or re-run with --force). Those slots become muted looping
       <video>s, and the page also loads css/cake-video.css + js/cake-video.js
       (with the shared tuner-ui panel, key T). A slot with an .mp4 is not seeded.
+      WebGL slots: list them in version.json BEFORE running `new` (or --force), e.g.
+      "webgl": {"hero": "cake-3d"}. Those slots become a <canvas> rendered by
+      js/cake-3d.js (glass cake, Three.js) with its tuner (key T); img/<slot>.png
+      stays as the no-WebGL fallback.
       Refuses to overwrite an existing version (add --force to re-copy the page;
       the img/ folder is never overwritten).
 
@@ -81,7 +85,41 @@ def videoize(h, imgdir):
     return h
 
 
-def page_from_template(slug, label, imgdir):
+WEBGL_CSS = ['tuner-ui.css?v=1', 'cake-3d.css?v=1']
+WEBGL_JS = ['tilt-parallax.js?v=1', 'anime.umd.min.js?v=1', 'three.min.js?v=1', 'three-post.js?v=1',
+            'tuner-ui.js?v=4', 'cake-3d.js?v=5', 'cake-3d-tuner.js?v=5']
+
+
+def webglize(h, webgl):
+    """Swap every slot listed in version.json "webgl" for a <canvas> stage."""
+    if not webgl:
+        return h
+    for s, scene in webgl.items():
+        if s not in SLOTS:
+            sys.exit(f'WebGL slot {s}: unknown slot.')
+        pat = re.compile(r'(<picture>)?<img ([^>]*?)src="img/' + re.escape(s) + r'\.png" data-slot="'
+                         + re.escape(s) + r'"([^>]*?)/?>(</picture>)?')
+        def rep(m, s=s, scene=scene):
+            attrs = m.group(2) + ' ' + m.group(3)
+            alt = (re.search(r'alt="([^"]*)"', attrs) or [None, ''])[1]
+            alt3d = alt.replace('Line illustration', 'Animated 3D glass illustration', 1)
+            return (f'<figure class="cake-3d-stage" data-slot="{s}" data-scene="{scene}">'
+                    f'<canvas class="cake-3d-canvas" role="img" aria-label="{alt3d}"></canvas>'
+                    f'<img class="cake-3d-fallback" src="img/{s}.png" alt="{alt}"/></figure>')
+        h, n = pat.subn(rep, h)
+        if n != 1:
+            sys.exit(f'WebGL slot {s}: expected 1 <img>, found {n}.')
+    links = ''.join(f'<link href="../../css/{c}" rel="stylesheet"/>\n' for c in WEBGL_CSS if c not in h)
+    h = h.replace('</head>', links + '</head>', 1)
+    scripts = ''.join(f'<script src="../../js/{j}"></script>\n' for j in WEBGL_JS
+                      if f'js/{j.split("?")[0]}' not in h)
+    h, n = re.subn(r'(<script src="\.\./\.\./js/cake\.js[^"]*"></script>\n)', lambda m: m.group(1) + scripts, h, count=1)
+    if n != 1:
+        sys.exit('Could not find cake.js to load the WebGL scripts after it.')
+    return h
+
+
+def page_from_template(slug, label, imgdir, webgl=None):
     h = TEMPLATE.read_text(encoding='utf-8')
     # shared assets live two levels up
     h = re.sub(r'(href|src)="(css|js|fonts)/', r'\1="../../\2/', h)
@@ -97,7 +135,7 @@ def page_from_template(slug, label, imgdir):
     h = re.sub(r'<title>[^<]*</title>',
                f'<title>Vibecoding prototype - Enterprise AI recipe page, {html.escape(label)} (unofficial)</title>', h)
     h = h.replace('<html lang="en">', f'<html lang="en" data-cake-version="{slug}">', 1)
-    return videoize(h, imgdir)
+    return webglize(videoize(h, imgdir), webgl)
 
 
 def cmd_new(argv):
@@ -117,9 +155,9 @@ def cmd_new(argv):
         dst = d / 'img' / f'{s}.png'
         if not any((d / 'img').glob(f'{s}.*')):
             shutil.copyfile(ORIGINALS / f'CEL1269 CCM Cookbook_{SEED[s]}.png', dst)
-    (d / 'index.html').write_text(page_from_template(slug, label, d / 'img'), encoding='utf-8')
     meta = d / 'version.json'
     data = json.loads(meta.read_text()) if meta.exists() else {}
+    (d / 'index.html').write_text(page_from_template(slug, label, d / 'img', data.get('webgl')), encoding='utf-8')
     if 'order' not in data:
         data['order'] = 1 + max([json.loads(q.read_text()).get('order', 0)
                                  for q in VERSIONS.glob('*/version.json') if q != meta] or [0])

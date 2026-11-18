@@ -1,0 +1,23 @@
+/* =========================================================================
+   Cake — glass 3D illustration slots (js/cake-3d.js). Loaded only by version
+   pages whose version.json declares "webgl" slots (make-version.py adds it).
+   The canvas renders opaque black and is SCREENED onto the dark hero, so the
+   hero's animated circles keep showing behind the cake.
+   ========================================================================= */
+.cake-3d-stage {
+  /* a <figure>, not a <div>: the hero CSS absolutely positions every
+     `.secondary-hero-wrapper div:first-child` */
+  margin: 0; position: relative; width: 100%; aspect-ratio: 1078 / 824;
+}
+.cake-3d-stage canvas.cake-3d-canvas {
+  display: block; width: 100%; height: 100%;
+  mix-blend-mode: screen;
+}
+/* PNG fallback: shown only when WebGL is unavailable */
+.cake-3d-stage .cake-3d-fallback { display: none; }
+.cake-3d-stage.cake-3d-off canvas { display: none; }
+.cake-3d-stage.cake-3d-off .cake-3d-fallback { display: block; width: 100%; height: 100%; object-fit: contain; }
+@media (width >= 1200px) {
+  /* the hero media sits in the bottom-left; give the glass room to breathe */
+  .secondary-hero .secondary-hero-media .cake-3d-stage { margin-top: -2rem; }
+}

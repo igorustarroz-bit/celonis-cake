@@ -1,0 +1,10 @@
+{
+  "webgl": {
+    "hero": "cake-3d"
+  },
+  "order": 3,
+  "slug": "glass-3d",
+  "label": "Glass 3D (WebGL)",
+  "description": "George's cake-ascent animation re-staged in WebGL with the Data Core glass: the data point, rings drawing on, rays to the data sources and the data frame, the tilt to 3D, glass tiers rising one by one with swags and a dotted grid, the star and the frosting rain on a close-up, the pull back to the whole cake on its stand with data drips, and a slow dissolve back to the data point (30 s loop). Hero only for now; the other slots keep the original PNGs. Tuner: press T.",
+  "date": "2026-11-18"
+}
