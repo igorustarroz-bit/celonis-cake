@@ -1,0 +1,14 @@
+{
+  "webgl": {
+    "hero": "cake-3d-slice",
+    "shortlist": "cake-3d-light",
+    "step-1": "cake-3d-light",
+    "step-2": "cake-3d-light",
+    "step-3": "cake-3d-light"
+  },
+  "order": 4,
+  "slug": "glass-3d-slice",
+  "label": "Glass 3D — slice hero (WebGL)",
+  "description": "Same as Glass 3D, but the hero shows a still slice of cake in glass: three layers (base, middle, frosting) cut as a wedge, white line edges, dotted crust, a swag line with beads and the whipped cream and cherry of Igor's 3D model (0016.obj) in glass on top. Not animated: it turns with the mouse (gyroscope on phones), a hovered layer lifts and the cream bounces. The white modules are the Glass 3D ones. Tuner: press T.",
+  "date": "2026-11-19"
+}

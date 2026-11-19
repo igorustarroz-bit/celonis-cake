@@ -39,18 +39,7 @@
   if (!window.THREE) return;
   var THREE = window.THREE;
 
-  var canvas = document.querySelector('canvas.cake-3d-canvas');
-  if (!canvas) return;
-  var stage = canvas.parentElement;
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  function fail() { stage.classList.add('cake-3d-off'); }
-  var renderer;
-  try {
-    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
-  } catch (e) { fail(); return; }
-  if (!renderer.getContext()) { fail(); return; }
-  stage.classList.add('cake-3d-on');
 
   /* ---------- deterministic RNG ---------- */
   function mulberry32(a) {
@@ -61,7 +50,6 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  var rnd = mulberry32(20261118);
 
   /* ---------- LIVE KNOBS: window.CAKE3D (the tuner writes here) ---------- */
   var TUNE = window.CAKE3D = {
@@ -104,6 +92,68 @@
       return out;
     }
   };
+
+  /* ---------- white-module compositions (Igor, 2026-11-19) ----------
+     The light slots run the same scene, each showing only some of its parts:
+       shortlist  the three tiers and the star — nothing else (no plate, stand,
+                  swags, grid, beads or frosting); held finished, ambient motion
+       step-1     the opening drawing (dot, rings, rays, data frame), then it
+                  UNDRAWS in sequence: frame, rays, faint rings, outer ring,
+                  inner ring, dot — and starts again
+       (steps 2 and 3 also undraw in reverse order of construction — Igor:
+        "the disappearances must be sequential")
+       step-2     the tiers going up as lines only: the FRONT halves of the cap
+                  rings, the dotted wall lines and the swags
+       step-3     the top tier alone and the star, with every detail: grid,
+                  swags, beads, frosting, drips
+     seg = stretch of the hero timeline it loops (ms, loop times), hold = still
+     moment, hide = parts switched off, tiers = tiers shown, cam = fixed camera. */
+  var SLOTCFG = {
+    'shortlist': { hold: 25000, tiers: [0, 1, 2],
+                   hide: ['intro', 'plate', 'foot', 'fronts', 'grid', 'swag', 'dots', 'frost', 'topDrips', 'drips', 'floaters'],
+                   cam: { el: 24, zoom: 1.0, y: 0.42 } },
+    // outro: [state key, start ms, duration ms] — undrawn in that order after the stretch ends (no fade)
+    'step-1':    { seg: [0, 6750], outro: [['frame', 0, 500], ['beads', 200, 60], ['rays', 300, 800], ['ringFaint', 950, 550],
+                                          ['ringOut', 1350, 550], ['ringIn', 1800, 500], ['dotIn', 2250, 300]] },
+    'step-2':    { seg: [7800, 15400], tiers: [0, 1, 2], frontOnly: true, cam: { el: 24, zoom: 1.0, y: 0.42 },
+                   outro: [['swag2', 0, 400], ['rim2', 300, 400], ['grid2', 600, 500], ['swag1', 1000, 400], ['rim1', 1300, 400],
+                           ['grid1', 1600, 500], ['swag0', 2000, 400], ['rim0', 2300, 400], ['grid0', 2600, 500]],
+                   hide: ['intro', 'plate', 'foot', 'fronts', 'glass', 'sil', 'dots', 'base', 'star', 'frost', 'topDrips', 'drips', 'floaters'] },
+    'step-3':    { seg: [13000, 20800], tiers: [2],
+                   // 'up' entries grow 0 → 1 instead: things that FALL (Igor: nothing goes back up against gravity)
+                   outro: [['frostOn', 0, 500], ['dripFall', 0, 1100, 'up'], ['starIn', 700, 500], ['starDraw', 1000, 600],
+                           ['starDots', 1500, 300], ['beadFall', 1500, 900, 'up'], ['swag2', 1900, 500], ['rim2', 2300, 500],
+                           ['grid2', 2800, 600]],
+                   hide: ['intro', 'plate', 'foot', 'fronts', 'drips', 'floaters'],
+                   cam: { el: 24, zoom: 1.75, y: 0.98 } }
+  };
+  var SEAM = 450;                  // fade in/out at the ends of a looped stretch (ms)
+  var instances = window.__cake3dAll = [];
+
+  function createCake(canvas, INDEX) {
+  var stage = canvas.parentElement;
+  var SLOT = stage.getAttribute('data-slot') || 'hero';
+  // light: the same scene inverted at the end of the post chain (white page, dark lines, milky glass)
+  var LIGHT = /light/.test(stage.getAttribute('data-scene') || '');
+  // slice: the hero shows a still slice of cake (version glass-3d-slice) instead of the animated cake
+  var SLICE = /slice/.test(stage.getAttribute('data-scene') || '');
+  var CFG = SLICE ? { hold: 25000, tiers: [],
+                      hide: ['intro', 'plate', 'foot', 'fronts', 'floaters', 'star', 'frost', 'topDrips', 'drips'],
+                      cam: { el: 27, zoom: 1.6, y: 0.24 } }
+                  : (SLOTCFG[SLOT] || null);       // null = the hero: the whole loop, everything shown
+  var SEG = CFG ? (CFG.seg || [CFG.hold, CFG.hold]) : null;
+  var HIDE = {};
+  if (CFG && CFG.hide) CFG.hide.forEach(function (k) { HIDE[k] = true; });
+
+  function fail() { stage.classList.add('cake-3d-off'); }
+  var renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
+  } catch (e) { fail(); return; }
+  if (!renderer.getContext()) { fail(); return; }
+  stage.classList.add('cake-3d-on');
+
+  var rnd = mulberry32(20261118);
 
   /* ---------- state (driven by the timeline) ---------- */
   // cam*: elevation (deg), zoom (× the fit of the finished cake), look-at height
@@ -234,7 +284,7 @@
     'uniform vec2 uCenter; uniform vec2 uOffset; uniform float uMag; uniform float uShift;',
     'uniform vec3 uBody; uniform float uTransmission; uniform float uRefract; uniform float uSeed;',
     'uniform float uIri; uniform float uFres; uniform float uTopClear; uniform float uTopDarken;',
-    'uniform float uEdgeWhite; uniform vec3 uSkyTop; uniform vec3 uSkyHz; uniform vec3 uTint; uniform float uFade; uniform float uPre;',
+    'uniform float uEdgeWhite; uniform vec3 uSkyTop; uniform vec3 uSkyHz; uniform vec3 uTint; uniform float uFade; uniform float uPre; uniform float uSolid;',
     'varying vec3 vN; varying vec3 vWN; varying vec2 vScreenUv;',
     'void main() {',
     '  vec3 N = normalize(vN);',
@@ -261,6 +311,8 @@
     '  col += iri * fres * uIri;',
     '  col *= uTint;',
     '  gl_FragColor = vec4(pow(col * uFade, vec3(2.2)), 1.0);',   // uFade: 0 = gone (black on black)
+    // uSolid (white modules): no glass at all — a flat fill (black here, white once inverted) that only hides what is behind
+    '  if (uSolid > 0.5) gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);',
     '}'].join('\n');
 
   var glassMats = [];
@@ -278,7 +330,7 @@
         uIri: { value: 0.1 }, uFres: { value: 0.85 }, uTopClear: { value: 0.85 }, uTopDarken: { value: 0.9 },
         uEdgeWhite: { value: 0.35 }, uSkyTop: { value: new THREE.Color('#eef4ff') },
         uSkyHz: { value: new THREE.Color('#8e9aad') }, uTint: { value: new THREE.Color(1, 1, 1) },
-        uFade: { value: 1 }, uPre: { value: 1 }
+        uFade: { value: 1 }, uPre: { value: 1 }, uSolid: { value: 0 }
       }
     });
     m.userData.baseRefract = 0.13 + 0.06 * seed;
@@ -291,7 +343,7 @@
 
 
   /* ---------- solids ---------- */
-  var BEV = 0.016;
+  var BEV = 0.007;          // tier bevel: small, so rim, side lines and base meet within half a pixel (was 0.016: hooks at the corners)
   function extrude(shape, depth, bevel, segs) {
     var geo = new THREE.ExtrudeGeometry(shape, {
       depth: depth, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel,
@@ -352,7 +404,7 @@
   var BACK = { value: 1 };                           // opacity of the far half of rims (1 in the flat view)
   var LINE_V = [
     'attribute vec3 prev; attribute vec3 next; attribute float side; attribute float u; attribute float dist;',
-    'uniform vec2 uRes; uniform float uWidth;',
+    'uniform vec2 uRes; uniform float uWidth; uniform float uZBias;',
     'varying float vU; varying float vDist; varying float vFront;',
     'void main() {',
     // which side of its own centre the point is on, seen from the camera (+z):
@@ -370,16 +422,18 @@
     '  dir = dot(dir, dir) > 1e-8 ? normalize(dir) : vec2(1.0, 0.0);',
     '  vec2 nrm = vec2(-dir.y, dir.x);',
     '  c.xy += nrm * side * uWidth * 0.5 / uRes * c.w;',
+    // uZBias (white modules): lines on a surface must beat the flat fill they lie on — a hair toward the camera
+    '  c.z -= uZBias * c.w;',
     '  gl_Position = c; vU = u; vDist = dist;',
     '}'].join('\n');
   var LINE_F = [
     'uniform float uOpacity; uniform float uProgress; uniform float uDash; uniform float uDuty;',
-    'uniform float uSym; uniform float uBackOn; uniform float uBack; uniform float uEdgeFade;',
+    'uniform float uSym; uniform float uBackOn; uniform float uBack; uniform float uEdgeFade; uniform float uStart;',
     'varying float vU; varying float vDist; varying float vFront;',
     'void main() {',
     // uSym: grows from its start point in BOTH directions (the video's rings and frame)
     '  float uu = uSym > 0.5 ? min(vU, 1.0 - vU) * 2.0 : vU;',
-    '  if (uu > uProgress || uOpacity <= 0.001) discard;',
+    '  if (uu > uProgress || uu < uStart || uOpacity <= 0.001) discard;',   // uStart: erased from its start (a drip running down)
     '  if (uDash > 0.0 && fract(vDist / uDash) > uDuty) discard;',
     '  float w = uBackOn > 0.5 ? mix(uBack, 1.0, smoothstep(-0.12, 0.12, vFront)) : 1.0;',
     // uEdgeFade: lines on a cylinder wall fade as they turn toward the silhouette (no doubled edge)
@@ -417,10 +471,11 @@
     g.setIndex(idx);
     var m = new THREE.ShaderMaterial({
       vertexShader: LINE_V, fragmentShader: LINE_F, transparent: true, depthWrite: false, side: THREE.DoubleSide,
-      uniforms: { uRes: RES, uWidth: { value: 2 }, uOpacity: { value: 1 }, uProgress: { value: 1 },
+      uniforms: { uRes: RES, uZBias: { value: LIGHT ? 0.0002 : 0 }, uWidth: { value: 2 }, uOpacity: { value: 1 }, uProgress: { value: 1 },
                   uDash: { value: o.dash || 0 }, uDuty: { value: o.duty || 0.5 },
-                  uSym: { value: o.sym ? 1 : 0 }, uBackOn: { value: o.back ? 1 : 0 }, uBack: BACK,
-                  uEdgeFade: { value: o.edgeFade ? 1 : 0 } }
+                  uSym: { value: o.sym ? 1 : 0 }, uBackOn: { value: (o.back || o.frontOnly) ? 1 : 0 },
+                  uBack: o.frontOnly ? { value: 0 } : BACK,   // frontOnly: the far half is never drawn
+                  uEdgeFade: { value: o.edgeFade ? 1 : 0 }, uStart: { value: 0 } }
     });
     var mesh = new THREE.Mesh(g, m);
     mesh.frustumCulled = false;
@@ -433,7 +488,8 @@
   function setLine(l, progress, op) {
     var u = l.material.uniforms;
     u.uProgress.value = progress;
-    u.uOpacity.value = Math.max(0, op) * l.userData.base * TUNE.lines.opacity;
+    // white modules: pure black lines (no grey levels), only the animation's own fades remain
+    u.uOpacity.value = Math.max(0, op) * (LIGHT ? 1 : l.userData.base * TUNE.lines.opacity);
     l.visible = progress > 0.001 && op > 0.002;
   }
   function circlePts(r, y, n, a0) {
@@ -490,7 +546,8 @@
   plate.add(plateMesh);
   var PB = 0.01, pRim = PLATE_R + 0.707 * PB + 0.003;   // on the plate's bevel, like the tiers
   var plateTop = makeLine(circlePts(pRim, PLATE_H - 0.293 * PB, 160), { closed: true, back: true }); plate.add(plateTop);
-  var plateBot = makeLine(circlePts(pRim, 0.293 * PB, 160), { closed: true, opacity: 0.6, back: true }); plate.add(plateBot);
+  // bottom edges at the foot of the wall (full radius, y = bevel): the lower bevel faces away and hid the corners
+  var plateBot = makeLine(circlePts(PLATE_R + PB + 0.001, PB, 160), { closed: true, opacity: 0.6, frontOnly: true }); plate.add(plateBot);
   var foot = new THREE.Group(); root.add(foot);
   var STEM_R = 0.13, STEM_H = 0.13, FOOT_R = 0.5, FOOT_H = 0.03;
   var stemMesh = glassPiece(extrude(circleShape(STEM_R), STEM_H - 0.02, 0.01, 48), 0.3, 0.5, 0.2);
@@ -500,7 +557,7 @@
   foot.add(stemMesh); foot.add(footMesh);
   var fRim = FOOT_R + 0.707 * 0.01 + 0.003;
   var footTop = makeLine(circlePts(fRim, -STEM_H - 0.293 * 0.01, 120, LEFT), { closed: true, sym: true, back: true }); foot.add(footTop);
-  var footBot = makeLine(circlePts(fRim, -STEM_H - FOOT_H + 0.293 * 0.01, 120, LEFT), { closed: true, sym: true }); foot.add(footBot);
+  var footBot = makeLine(circlePts(FOOT_R + 0.011, -STEM_H - FOOT_H + 0.01, 120, LEFT), { closed: true, sym: true, frontOnly: true }); foot.add(footBot);
   // the two bold verticals on the front of the bottom tier, down to the stand
   var fronts = [-0.075, 0.075].map(function (x) {
     var z = Math.sqrt(Math.pow(TIERS[0].r + BEV + 0.006, 2) - x * x);
@@ -514,10 +571,9 @@
   // meet them exactly (Igor: "the side lines don't fit")
   function silProfile(r, h, side) {
     var pts = [], R = BEV + 0.001, k, a;
-    for (k = 0; k <= 4; k++) {                        // bottom bevel: 45° point → wall
-      a = -Math.PI / 4 * (1 - k / 4);
-      pts.push(new THREE.Vector3(side * (r + Math.cos(a) * R), BEV + Math.sin(a) * BEV, 0));
-    }
+    // bottom: straight down to the foot of the wall (y = bevel), where the base ring is — the lower bevel
+    // faces away from the camera, so a line curving into it was hidden by the wall (Igor: broken corners)
+    pts.push(new THREE.Vector3(side * (r + R), BEV, 0));
     for (k = 0; k <= 4; k++) {                        // top bevel: wall → 45° point
       a = Math.PI / 4 * (k / 4);
       pts.push(new THREE.Vector3(side * (r + Math.cos(a) * R), h - BEV + Math.sin(a) * BEV, 0));
@@ -576,7 +632,9 @@
       d.userData.delay = rnd() * 0.35;
       joints.push(d);
     }
-    var bottom = makeLine(circlePts(rRim, yOff, 160, LEFT), { closed: true, back: true }); grp.add(bottom);
+    // base ring at the foot of the wall (full radius, y = bevel): visible from above, and it meets the side lines
+    // base ring: ONLY its front (lower) half, ever — the full ellipse in perspective must never show (Igor)
+    var bottom = makeLine(circlePts(rr, BEV, 160, LEFT), { closed: true, frontOnly: true }); grp.add(bottom);
     grp.userData = { lift: 0, kind: 'tier' };
     return { T: T, i: i, grp: grp, wall: wall, mesh: mesh, top: top, heads: heads, sil: sil, grid: grid,
              swag: swag, joints: joints, bottom: bottom, rr: rr, rRim: rRim, yTop: T.h - yOff };
@@ -595,6 +653,151 @@
     var a = Math.PI / 4 + k * Math.PI / 2;
     return makeDot(starPivot, Math.cos(a) * STAR_R * 1.03, STAR_H + 0.004, -Math.sin(a) * STAR_R * 1.03);
   });
+
+  /* ---------- the slice (version glass-3d-slice, hero): a still wedge of the cake ----------
+     Igor: "a slice of cake like this one, not animated, but reacting to the mouse". Three glass
+     layers (base, middle, frosting) cut as a wedge, white lines on every edge, dotted lines on the
+     crust, a swag line with beads on the frosting, a glass dollop of cream on top. Hover lifts a
+     layer; hover on the dollop makes it bounce and turn. */
+  var slice = null;
+  if (SLICE) slice = (function () {
+    var SR = 1.15, SA = 52 * Math.PI / 180, GAP = 0.022;
+    var LAYERS = [{ h: 0.1875, seed: 0.24, g: 0.48 }, { h: 0.15, seed: 0.29, g: 0.52 }, { h: 0.0825, seed: 0.33, g: 0.56 }];   // 75% of the first heights (Igor)
+    function wedgeShape() {
+      var s = new THREE.Shape();
+      s.moveTo(0, 0);
+      s.lineTo(Math.cos(-SA / 2) * SR, Math.sin(-SA / 2) * SR);
+      s.absarc(0, 0, SR, -SA / 2, SA / 2, false);
+      s.lineTo(0, 0);
+      return s;
+    }
+    // the outline of the wedge at height y, in world terms (shape y → world −z, as in extrude())
+    function outline(y, n) {
+      var pts = [new THREE.Vector3(0, y, 0)];
+      for (var i = 0; i <= n; i++) {
+        var a = -SA / 2 + SA * i / n;
+        pts.push(new THREE.Vector3(Math.cos(a) * SR, y, -Math.sin(a) * SR));
+      }
+      return pts;
+    }
+    var grp = new THREE.Group(); root.add(grp);
+    var inner = new THREE.Group(); grp.add(inner);
+    var cx = 2 * SR * Math.sin(SA / 2) / (3 * SA / 2);         // centroid of the sector, along its bisector
+    inner.position.x = -cx;
+    grp.rotation.y = 0.75;                                     // three-quarter view: tip front-left, crust to the right and back
+    var layers = [], y0 = 0;
+    LAYERS.forEach(function (L, i) {
+      var lg = new THREE.Group(); lg.position.y = y0; inner.add(lg);
+      var geo = new THREE.ExtrudeGeometry(wedgeShape(), { depth: L.h, bevelEnabled: false, curveSegments: 48 });
+      geo.rotateX(-Math.PI / 2);
+      var mesh = glassPiece(geo, L.seed, L.g, 0.3);
+      mesh.userData.tier = lg;
+      lg.add(mesh);
+      lg.userData = { lift: 0, base: y0 };
+      // outlines: top and bottom of the layer, the three vertical corners
+      lg.add(makeLine(outline(L.h, 64), { closed: true }));
+      lg.add(makeLine(outline(0, 64), { closed: true, opacity: 0.7 }));
+      [[0, 0], [Math.cos(-SA / 2) * SR, Math.sin(SA / 2) * SR], [Math.cos(SA / 2) * SR, -Math.sin(SA / 2) * SR]].forEach(function (c) {
+        lg.add(makeLine([new THREE.Vector3(c[0], 0, c[1]), new THREE.Vector3(c[0], L.h, c[1])]));
+      });
+      // dotted lines on the crust (the arc face), fading toward its edges like the tiers' walls
+      for (var k = 1; k < 9; k++) {
+        var a = -SA / 2 + SA * k / 9, r = SR + 0.002;
+        lg.add(makeLine([new THREE.Vector3(Math.cos(a) * r, 0.01, -Math.sin(a) * r),
+                         new THREE.Vector3(Math.cos(a) * r, L.h - 0.01, -Math.sin(a) * r)], { fine: true, dash: 0.022, duty: 0.35 }));
+      }
+      layers.push(lg);
+      y0 += L.h + GAP;
+    });
+    // swag line with beads on the frosting's crust
+    var top = layers[2], TH = LAYERS[2].h, NSW = 4, sw = [];
+    for (var s = 0; s <= 120; s++) {
+      var t = s / 120, a2 = -SA / 2 + SA * t;
+      var yy = TH - 0.012 - TH * 0.5 * Math.abs(Math.sin(t * NSW * Math.PI));
+      sw.push(new THREE.Vector3(Math.cos(a2) * (SR + 0.003), yy, -Math.sin(a2) * (SR + 0.003)));
+    }
+    top.add(makeLine(sw));
+    var beads = [];
+    for (var q = 0; q <= NSW; q++) {
+      var a3 = -SA / 2 + SA * q / NSW;
+      beads.push(makeDot(top, Math.cos(a3) * (SR + 0.004), TH - 0.012, -Math.sin(a3) * (SR + 0.004)));
+    }
+    // the dollop: a squashed screw tip (Igor: "like the tip of a screw flattened into a cone with rounded edges") —
+    // a low rounded cone with one continuous rounded thread winding three times up to a rounded top; a white line runs
+    // along the groove of the thread
+    var DH = 0.3, DR = 0.2, TURNS = 3, NY = 180, NTH = 144;
+    function dRad(t) {                       // silhouette: rounded foot, cone, rounded top
+      var foot = Math.sqrt(Math.max(0, 1 - Math.pow(Math.max(0, 1 - t / 0.08), 2)));
+      var top = Math.sqrt(Math.max(0, 1 - Math.pow(Math.max(0, (t - 0.82) / 0.18), 2)));
+      return DR * (1 - 0.62 * t) * (0.55 + 0.45 * foot) * top;
+    }
+    function dThread(phase) {                // rounded crests, narrow grooves at whole phases
+      return 1 - 0.2 * (1 - Math.pow(Math.abs(Math.sin(Math.PI * phase)), 0.7));
+    }
+    function dPt(t, th, out, push) {
+      var phase = TURNS * t - th / (Math.PI * 2);
+      var fade = Math.min(1, (1 - t) / 0.15, 0.35 + t / 0.12);   // the thread dies out into the rounded top, is shallow at the foot
+      var r = dRad(t) * (1 - fade * (1 - dThread(phase))) + (push || 0);
+      return out.set(Math.cos(th) * r, t * DH, -Math.sin(th) * r);
+    }
+    var dpos = [], didx = [], tv = new THREE.Vector3();
+    for (var iy = 0; iy <= NY; iy++) for (var it = 0; it <= NTH; it++) {
+      dPt(iy / NY, it / NTH * Math.PI * 2, tv); dpos.push(tv.x, tv.y, tv.z);
+    }
+    for (var a4 = 0; a4 < NY; a4++) for (var b4 = 0; b4 < NTH; b4++) {
+      var i0 = a4 * (NTH + 1) + b4, i1 = i0 + NTH + 1;
+      didx.push(i0, i0 + 1, i1, i1, i0 + 1, i1 + 1);
+    }
+    var lathe = new THREE.BufferGeometry();
+    lathe.setAttribute('position', new THREE.Float32BufferAttribute(dpos, 3));
+    lathe.setIndex(didx);
+    lathe.computeVertexNormals();
+    var dollop = new THREE.Group();
+    var dmesh = glassPiece(lathe, 0.72, 0.6, 0.35);
+    dmesh.userData.isDollop = true;
+    dollop.add(dmesh);
+    var gp = [];                             // the groove of the thread, one helix
+    for (var ig = 10; ig <= NY * 0.86; ig++) {
+      var tg = ig / NY;
+      gp.push(dPt(tg, Math.PI * 2 * TURNS * tg, new THREE.Vector3(), 0.004));
+    }
+    dollop.add(makeLine(gp, { fine: true }));
+    // Igor's 3D model (0016.obj, cake-3d-cream.js): when loaded, its whipped cream, cherry and stem replace the
+    // procedural swirl, taken as they are — only scaled and set on the frosting
+    var CR = window.CAKE3D_CREAM;
+    if (CR) {
+      while (dollop.children.length) dollop.remove(dollop.children[0]);
+      var crS = 0.31, crMn = CR.min, crMx = CR.max;
+      var crB64 = function (b) { var bin = atob(b), u = new Uint8Array(bin.length); for (var q = 0; q < bin.length; q++) u[q] = bin.charCodeAt(q); return new Uint16Array(u.buffer); };
+      var crLook = { cream: [0.72, 0.6, 0.08], cherry: [0.41, 0.42, 0.15], stem: [0.5, 0.45, 0.15] };   // faint edge lines: the model's piping folds would hatch
+      ['cream', 'cherry', 'stem'].forEach(function (nm) {
+        var P = CR.parts[nm], qp = crB64(P.p), pos = new Float32Array(qp.length);
+        for (var q = 0; q < qp.length; q++) {
+          var k = q % 3, v = crMn[k] + qp[q] / 65535 * (crMx[k] - crMn[k]);
+          pos[q] = (k === 1 ? v + 0.045 : v) * crS;        // cream foot (y −0.055) sinks 0.01 into the frosting
+        }
+        var g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        g.setIndex(new THREE.BufferAttribute(crB64(P.i), 1));
+        g.computeVertexNormals();
+        var L = crLook[nm], m = glassPiece(g, L[0], L[1], L[2]);
+        m.userData.isDollop = true;
+        dollop.add(m);
+      });
+    }
+    dollop.position.set(SR * 0.62, TH, 0);
+    dollop.scale.setScalar(1);
+    top.add(dollop);
+    return { grp: grp, layers: layers, beads: beads, dollop: dollop, bounce: { p: 0, busy: false } };
+  })();
+  function LAYERS_TOP() { return 0.0825; }   // the dollop sits on the frosting layer (its own group)
+  function bounceDollop() {
+    if (!slice || reduced || slice.bounce.busy) return;
+    var an = window.anime;
+    if (!an || !an.animate) return;
+    slice.bounce.busy = true; slice.bounce.p = 0;
+    an.animate(slice.bounce, { p: 1, duration: 1000, ease: 'inOutSine', onComplete: function () { slice.bounce.busy = false; slice.bounce.p = 0; } });
+  }
 
   /* ---------- the opening drawing: data point, rings, rays, frame ---------- */
   var intro = new THREE.Group(); root.add(intro);
@@ -682,10 +885,11 @@
   /* ---------- frosting: lines falling onto the top tier, bead first; drips down its side ---------- */
   var frostMat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, toneMapped: false,
-    uniforms: { uOpacity: { value: 0.85 } },
+    uniforms: { uOpacity: { value: 0.85 }, uSolid: { value: 0 } },
     vertexShader: LINE_VERT,
-    fragmentShader: 'uniform float uOpacity; varying vec2 vUv; varying float vY;' +
-      'void main(){ float a = pow(1.0 - vUv.y, 1.3); gl_FragColor = vec4(vec3(1.0), a * uOpacity); }'
+    // uSolid (white modules): a plain solid stroke instead of the fading light trail
+    fragmentShader: 'uniform float uOpacity; uniform float uSolid; varying vec2 vUv; varying float vY;' +
+      'void main(){ float a = mix(pow(1.0 - vUv.y, 1.3), 1.0, uSolid); gl_FragColor = vec4(vec3(1.0), a * uOpacity); }'
   });
   var frosting = [], FROST_MAX = 18, frostGroup = new THREE.Group();
   tiers[2].grp.add(frostGroup);
@@ -712,7 +916,7 @@
   }
 
   /* ---------- timeline (30 s, timed on cake-ascent-30s frame by frame) ---------- */
-  var tl = null;
+  var tl = null, segT = 0;
   var TWEENS = [
     // [prop, to, start ms, duration ms, ease]
     // 0–2.5 s: only the data point
@@ -782,7 +986,8 @@
   function startTimeline() {
     var an = window.anime;
     if (!an || !an.createTimeline) { finalState(); return; }
-    tl = an.createTimeline({ loop: !reduced, autoplay: !reduced });
+    // the hero plays the whole loop; light slots are driven frame by frame inside their fragment (see render)
+    tl = an.createTimeline({ loop: !reduced && !SEG, autoplay: !reduced && !SEG });
     // in time order: each tween of a property starts from where the previous one ended
     tl.add(state, { dotIn: 1, duration: 300, ease: 'outQuad' }, 0);
     TWEENS.slice().sort(function (p, q) { return p[2] - q[2]; }).forEach(function (w) {
@@ -795,7 +1000,8 @@
     tl.add(state, r, BLACK_FROM + 100);
     tl.add(state, { fadeAll: 1, duration: 10, ease: 'linear' }, BLACK_FROM + 250);
     tl.add(state, { end: 1, duration: 10, ease: 'linear' }, LOOP - 10);
-    if (reduced) { tl.seek(27000 - SHIFT); tl.pause(); }
+    if (SEG) { tl.pause(); tl.seek(reduced ? SEG[0] + (SEG[1] - SEG[0]) * 0.9 : SEG[0]); }   // hold: SEG[0] = SEG[1]
+    else if (reduced) { tl.seek(27000 - SHIFT); tl.pause(); }
     applySpeed();
   }
   function finalState() {
@@ -845,7 +1051,8 @@
     var hits = raycaster.intersectObjects(glassMeshes.filter(function (m) { return m.visible; }), false);
     if (!hits.length) return;
     var o = hits[0].object;
-    if (o.userData.isStar) spinStar();
+    if (o.userData.isDollop) bounceDollop();
+    else if (o.userData.isStar) spinStar();
     else if (o.userData.tier) hoverLift(o.userData.tier);
   }, { passive: true });
   if (window.TiltParallax) TiltParallax.start(function (x, y) {
@@ -881,7 +1088,8 @@
     frame();
   }
   function frame() {
-    PPW = fitPPW * state.camZoom * state.viewK * TUNE.view.scale;
+    // light slots keep scale 1: on the white modules the hero's 1.4 cropped the tiers
+    PPW = fitPPW * state.camZoom * ((LIGHT || SLICE) ? 1 : state.viewK) * TUNE.view.scale;
     lookY = state.camY;
     placeCamera();
     camera.left = -W / PPW / 2; camera.right = W / PPW / 2;
@@ -903,13 +1111,17 @@
     // (screen-blended onto the hero) leaves no grey box around the cake
     if (THREE.ShaderPass) {
       floorPass = new THREE.ShaderPass({
-        uniforms: { tDiffuse: { value: null }, uFloor: { value: 0.05 } },
+        uniforms: { tDiffuse: { value: null }, uFloor: { value: 0.05 }, uGlobal: { value: 1 }, uInvert: { value: LIGHT ? 1 : 0 } },
         vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: 'uniform sampler2D tDiffuse; uniform float uFloor; varying vec2 vUv;' +
+        fragmentShader: 'uniform sampler2D tDiffuse; uniform float uFloor; uniform float uGlobal; uniform float uInvert; varying vec2 vUv;' +
           // (no edge mask any more: it darkened the glass wherever the cake touched the canvas edge)
           // soft knee: haze below ~uFloor fades smoothly to black (a hard subtract drew stepped contours in the bloom halo)
           'void main(){ vec4 c = texture2D(tDiffuse, vUv); float l = max(max(c.r, c.g), c.b);' +
-          '  gl_FragColor = vec4(c.rgb * smoothstep(uFloor * 0.6, uFloor * 1.8, l), 1.0); }'
+          '  vec3 o = c.rgb * smoothstep(uFloor * 0.6, uFloor * 1.8, l) * uGlobal;' +
+          // light slots: invert — black page → white, white lines → dark, smoked glass → milky glass
+          // inverted, the glass's cool tint turns cream: keep the light version neutral grey
+          '  vec3 inv = 1.0 - o; inv = mix(inv, vec3(dot(inv, vec3(0.299, 0.587, 0.114))), 0.92);' +
+          '  gl_FragColor = vec4(mix(o, inv, uInvert), 1.0); }'
       });
       composer.addPass(floorPass);
     }
@@ -921,7 +1133,7 @@
     composer.renderTarget1.samples = n; composer.renderTarget2.samples = n;
     composer.renderTarget1.dispose(); composer.renderTarget2.dispose();
   }
-  window.CAKE3D_INFO = function () {
+  if (INDEX === 0) window.CAKE3D_INFO = function () {
     return { webgl2: !!renderer.capabilities.isWebGL2,
              msaaSamples: (composer && renderer.capabilities.isWebGL2) ? composer.renderTarget1.samples : 0,
              fxaa: !!(fxaaPass && fxaaPass.enabled), pixelRatio: renderer.getPixelRatio() };
@@ -946,13 +1158,16 @@
       u.uTint.value.setRGB(TUNE.tint.r, TUNE.tint.g, TUNE.tint.b);
       u.uBody.value.copy(ud.baseBody).multiplyScalar(TUNE.body);
       u.uFade.value = f;
+      u.uSolid.value = LIGHT ? 1 : 0;
+
       ud.preMat.color.copy(ud.basePre).multiplyScalar(TUNE.pre * f);
       var rl = gm.userData.rim;
-      rl.material.opacity = Math.min(1, rl.userData.baseOp * TUNE.rim) * f;
+      rl.material.opacity = LIGHT ? 0 : Math.min(1, rl.userData.baseOp * TUNE.rim) * f;   // no light edges on white
       gm.visible = f > 0.002;
     }
     bgQuad.material.color.set(TUNE.backdrop);
     blurMat.uniforms.uRadius.value = TUNE.frostRadius;
+    if (bloomPass) bloomPass.enabled = !LIGHT;            // no glow on white
     if (bloomPass) {
       bloomPass.strength = TUNE.bloom.strength; bloomPass.radius = TUNE.bloom.radius; bloomPass.threshold = TUNE.bloom.threshold;
     }
@@ -978,6 +1193,26 @@
   function render(now) {
     running = false;
     var dt = Math.min(0.05, (now - last) / 1000) * (reduced ? 0 : TUNE.motion.speed);
+    // light slots: loop one fragment of the timeline, fading to the page colour at the seams
+    if (SEG && tl) {
+      var segLen = SEG[1] - SEG[0], seq = (CFG && CFG.outro) || null, gk = 1, outro = 0;
+      if (seq) seq.forEach(function (s) { outro = Math.max(outro, s[1] + s[2]); });
+      if (segLen <= 0) { tl.seek(SEG[0]); }                       // hold: a still moment, ambient motion only
+      else {
+        if (!reduced) { segT += dt * 1000; if (segT >= segLen + outro) segT -= segLen + outro; }
+        tl.seek(SEG[0] + Math.min(segT, segLen));
+        if (seq) {
+          // no fade: after the stretch, undraw part by part in the listed order (Igor: sequential disappearances)
+          var o = segT - segLen;
+          seq.forEach(function (s) {
+            if (s[3] === 'up') state[s[0]] = o > 0 ? ease((o - s[1]) / s[2]) : 0;            // falls: 0 → 1
+            else if (o > 0) state[s[0]] = Math.min(state[s[0]], 1 - ease((o - s[1]) / s[2])); // undraws: → 0
+          });
+        } else if (!reduced) gk = ease(segT / SEAM) * ease((segLen - segT) / SEAM);
+      }
+      if (floorPass) floorPass.uniforms.uGlobal.value = gk;
+      if (CFG.cam) { state.camEl = CFG.cam.el; state.camZoom = CFG.cam.zoom; state.camY = CFG.cam.y; }
+    }
     last = now; clock += dt;
     var F = state.fadeAll, dotR = TUNE.dots.px / PPW / 2;
 
@@ -1043,12 +1278,14 @@
       t.sil.rotation.y = -root.rotation.y;
       t.sil.userData.l.forEach(function (l) { setLine(l, state['grid' + i], tf * TUNE.lines.silhouettes); });
       var gp = state['grid' + i];
-      t.grid.forEach(function (l) { setLine(l, gp, tf * TUNE.grid.opacity); l.material.uniforms.uDash.value = TUNE.grid.dash; });
+      t.grid.forEach(function (l) { setLine(l, gp, tf * (LIGHT ? 1 : TUNE.grid.opacity)); l.material.uniforms.uDash.value = TUNE.grid.dash; });
       setLine(t.swag, state['swag' + i], tf);
       t.joints.forEach(function (d) {
         var p = ease(clamp01((rd - d.userData.delay) / 0.65));
         d.position.lerpVectors(d.userData.from, d.userData.to, p);
-        setDot(d, (rd > d.userData.delay ? 1 : 0) * tf);
+        var bf = ease(clamp01(((state.beadFall || 0) - d.userData.delay * 0.5) / 0.7));   // beadFall: drop off, fade
+        d.position.y -= bf * bf * 0.3;
+        setDot(d, (rd > d.userData.delay ? 1 : 0) * tf * (1 - ease((bf - 0.4) / 0.6)));
         d.scale.setScalar(dotR * 0.75);
       });
     });
@@ -1065,7 +1302,7 @@
     // --- dashed drips under the plate + risers ---
     var dIn = state.dripIn * F;
     dripMat.uniforms.uOffset.value += dt * TUNE.drips.flow;
-    dripMat.uniforms.uOpacity.value = TUNE.drips.opacity * dIn;
+    dripMat.uniforms.uOpacity.value = (LIGHT ? 1 : TUNE.drips.opacity) * dIn;
     dripGroup.visible = dIn > 0.002;
     var wpx = TUNE.lines.finePx / PPW;
     drips.forEach(function (d) { d.m.scale.x = wpx; d.m.rotation.y = -root.rotation.y; });
@@ -1098,18 +1335,68 @@
       fr.m.position.set(fr.x, y, fr.z);
       fr.m.rotation.y = -root.rotation.y;
       fr.m.scale.x = TUNE.lines.finePx / PPW;
-      fr.m.material.uniforms.uOpacity.value = TUNE.frosting.opacity * on * ease(ph / 0.08);
+      fr.m.material.uniforms.uOpacity.value = (LIGHT ? 1 : TUNE.frosting.opacity) * on * ease(ph / 0.08);
+      fr.m.material.uniforms.uSolid.value = LIGHT ? 1 : 0;
       fr.bead.position.set(fr.x, y, fr.z);                      // the bead leads, at the bottom tip
       setDot(fr.bead, on);
       fr.bead.scale.setScalar(dotR * 0.8);
     });
+    var dFall = state.dripFall || 0;
     topDrips.forEach(function (d) {
       var p = ease(clamp01((state.topDrips - d.delay) / 0.45));
+      // dripFall: the trail empties from the top and the bead keeps sliding down and drops off the tier
+      var f = ease(clamp01((dFall - d.delay * 0.4) / 0.6));
       setLine(d.l, p, F);
+      d.l.material.uniforms.uStart.value = f;
       d.bead.position.lerpVectors(d.P0, d.P1, p);
-      setDot(d.bead, (p > 0.001 ? 1 : 0) * F);
+      d.bead.position.y -= f * f * 0.45;
+      setDot(d.bead, (p > 0.001 ? 1 : 0) * F * (1 - ease((f - 0.6) / 0.4)));
       d.bead.scale.setScalar(dotR * 0.7);
     });
+
+    // --- light-slot compositions: switch parts off (after the normal update) ---
+    if (CFG) {
+      if (HIDE.intro) intro.visible = false;
+      if (HIDE.plate) { plateMesh.userData.fade = 0; plateTop.visible = plateBot.visible = false; }
+      if (HIDE.drips) dripGroup.visible = false;
+      if (HIDE.foot) { stemMesh.userData.fade = footMesh.userData.fade = 0; footTop.visible = footBot.visible = false; }
+      if (HIDE.fronts) fronts.forEach(function (l) { l.visible = false; });
+      if (HIDE.floaters) floaters.forEach(function (fl) { fl.m.visible = false; });
+      if (HIDE.star) { starPivot.visible = false; starMesh.userData.fade = 0; }
+      if (HIDE.frost) frostGroup.visible = false;
+      if (HIDE.topDrips) topDrips.forEach(function (d) { d.l.visible = false; d.bead.visible = false; });
+      tiers.forEach(function (t, i) {
+        var on = !CFG.tiers || CFG.tiers.indexOf(i) >= 0;
+        t.grp.visible = on;
+        if (!on) { t.mesh.userData.fade = 0; return; }
+        if (HIDE.glass) t.mesh.userData.fade = 0;
+        if (HIDE.sil) t.sil.visible = false;
+        if (HIDE.grid) t.grid.forEach(function (l) { l.visible = false; });
+        if (HIDE.swag) t.swag.visible = false;
+        if (HIDE.base) t.bottom.visible = false;
+        if (HIDE.dots) { t.joints.forEach(function (d) { d.visible = false; }); t.heads.forEach(function (d) { d.visible = false; }); }
+      });
+      if (CFG.frontOnly) {                     // step-2: only the near (lower) halves — no glass hides the far side here
+        BACK.value = 0;
+        tiers.forEach(function (t) { t.swag.material.uniforms.uBackOn.value = 1; });
+      }
+    }
+
+    // --- the slice: still; only hover lifts and the dollop's bounce move ---
+    if (slice) {
+      slice.layers.forEach(function (lg) {
+        lg.position.y = lg.userData.base + lg.userData.lift;
+        lg.children.forEach(function (c) {
+          if (c.userData.rim !== undefined || c.userData.fade !== undefined) c.userData.fade = 1;
+          if (c.material && c.material.uniforms && c.material.uniforms.uProgress) setLine(c, 1, c.userData.fine ? (LIGHT ? 1 : TUNE.grid.opacity) * 2.5 : 1);
+        });
+      });
+      slice.beads.forEach(function (d) { setDot(d, 1); d.scale.setScalar(dotR * 0.8); });
+      var bp = slice.bounce.p;
+      slice.dollop.position.y = LAYERS_TOP() + Math.sin(bp * Math.PI) * 0.08;
+      slice.dollop.rotation.y = bp * Math.PI * 2;
+      slice.dollop.children[0].userData.fade = 1;
+    }
 
     // dot opacity (beads fade by size and alpha)
     for (var di2 = 0; di2 < dotsAll.length; di2++) dotsAll[di2].material.opacity = dotsAll[di2].userData.k;
@@ -1161,7 +1448,7 @@
   if (window.IntersectionObserver) {
     new IntersectionObserver(function (es) {
       visible = es[0].isIntersecting;
-      if (tl && !reduced) { visible ? tl.play() : tl.pause(); }
+      if (tl && !reduced && !SEG) { visible ? tl.play() : tl.pause(); }
       if (visible) { last = performance.now(); schedule(); }
     }, { rootMargin: '100px' }).observe(stage);
   }
@@ -1178,10 +1465,17 @@
     canvas.style.cursor = 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '") 14 14, crosshair';
   }
 
-  window.__cake3d = { state: state, renderer: renderer, camera: camera, scene: scene, passes: function () { return { bloom: bloomPass, floor: floorPass }; }, timeline: function () { return tl; } };
+  var api = { slot: SLOT, state: state, seg: function (ms) { segT = ms; }, renderer: renderer, camera: camera, scene: scene, passes: function () { return { bloom: bloomPass, floor: floorPass }; }, timeline: function () { return tl; } };
+
+  instances.push(api);
+  if (INDEX === 0) window.__cake3d = api;     // the first (hero) instance: tuner read-out, debugging
 
   /* ---------- go ---------- */
   resize();
   startTimeline();
   schedule();
+  }   // createCake
+
+  var cv = document.querySelectorAll('canvas.cake-3d-canvas');
+  for (var ci0 = 0; ci0 < cv.length; ci0++) createCake(cv[ci0], ci0);
 })();

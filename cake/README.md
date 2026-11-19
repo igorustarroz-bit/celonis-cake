@@ -74,8 +74,7 @@ cut into chapters (no Gemini clips, not `cake-original-30s`).
 
 `versions/glass-3d/` — **George's animation (`illustrations/evolved/george/cake-ascent-30s.mp4`) re-staged in WebGL**
 with the glass of `celonistvibecoding/experiments/datacore/index3d.html`: near-black smoked glass with light edges,
-screen-space refraction over a pre-pass, frost, subtle bloom. **Hero only for now**; the other four slots keep the
-original PNGs (when they get 3D they go in dark cards).
+screen-space refraction over a pre-pass, frost, subtle bloom. Hero + the four white-module slots (2026-11-19), all in the same WebGL tech.
 
 27.9 s loop (the video's 30 s minus its 2.2 s lone-dot opening, plus 0.5 s of black at the end), timed and framed on the video frame by frame (2 fps contact sheets, plate / tier / star widths measured per second):
 
@@ -110,6 +109,13 @@ original PNGs (when they get 3D they go in dark cards).
 - Every line sits on the glass edge (+0.001, was +0.003 ≈ 1 px outside). Swags are offset by half a scallop so no joint bead lands on the
   left/right silhouettes (it made a bump where the side line meets the rim), and the dotted wall lines fade as they turn toward the silhouette
   (`edgeFade`, smoothstep 0.12–0.45 of the facing) so none doubles the edge.
+- Tier bevel is small (`BEV` 0.007, was 0.016): the rim on the upper bevel and the side lines at the wall's radius then differ by
+  < 0.5 px, so the top corners close without a hook (Igor, 2026-11-19).
+- Bottom rings (tiers, plate, stand) are drawn **front half only, always** (`frontOnly`: their own far-half opacity 0) — the full ellipse in
+  perspective must never show, e.g. while a tier is built and there is no fill to hide its back yet (Igor, 2026-11-19).
+- Bottom edges (tiers, plate, stand) sit at the **foot of the wall** (full radius, y = bevel), and the side lines run straight down to them:
+  the lower bevel faces away from the camera, so a ring on it (or a side line curving into it) was hidden by the wall and the corners
+  broke — very visible on the white modules' solid fill (Igor, 2026-11-19). Top edges stay on the upper bevel's 45° point.
 - Side silhouettes follow the glass profile: straight along the wall (r + bevel), then along the rounded bevel into the base ring and the rim,
   so they meet them exactly (Igor: "the side lines don't fit"). Swag joints and their beads sit where the wall meets the bevel, on the side line.
 - `lines.backArc` (< 1) can still dim the far half of rims once the view is 3D, like the video's hidden-line drawing (default 1, off).
@@ -133,3 +139,56 @@ original PNGs (when they get 3D they go in dark cards).
 - `make-version.py`: slots listed in `version.json` → `"webgl": {"hero": "cake-3d"}` become the canvas stage.
 - Verified (Chromium, 1440 and 390): 0 form/input/select/textarea/iframe with the tuner mounted, 0 cross-origin requests,
   only local scripts, no console errors.
+
+### White modules — compositions from the hero scene (2026-11-19)
+
+Igor first asked for "fragments of the hero animation" on white, then refined it per module ("all in the same technology").
+`cake-3d.js` is instanced: one `createCake()` per `canvas.cake-3d-canvas`, all sharing `window.CAKE3D` (the tuner drives every
+illustration). Light slots (`data-scene="cake-3d-light"`) render the same scene **inverted** in the floor pass (`uInvert`: white page,
+dark lines, milky glass, desaturated 92 % so the glass isn't cream) and the canvas is multiplied onto the module. Each slot's
+composition is `SLOTCFG[slot]` in `cake-3d.js` — the stretch of the hero timeline it loops (`seg`) or the moment it holds (`hold`),
+the parts switched off (`hide`), the tiers shown and an optional fixed camera:
+
+| slot | composition |
+|---|---|
+| shortlist | **only the three tiers and the star** (glass, rims, side lines) — no plate, stand, swags, grid, beads or frosting; held finished (25 s), star spin + parallax |
+| step-1 | the opening drawing (0–6.75 s: dot, rings, rays, data frame), then it **undraws in sequence** (2.7 s): frame, rays (bead riding back), faint rings, outer ring, inner ring, dot — and starts again |
+| step-2 | the tiers going up (7.8–15.4 s) as **lines only**: the front (lower) halves of the cap rings, the dotted wall lines and the swags (front halves); fixed camera; then **undraws in reverse**, tier by tier from the top: swags, rim, dotted lines (3.1 s) |
+| step-3 | **the top tier alone and the star** with every detail — — grid, swags, beads, frosting, drips (13–20.8 s); fixed close camera; then **undraws in reverse**: frosting stops, the drips **run down and drop off** (trail emptied from the top, `uStart`), star glass → arcs → beads, the rim beads **drop and fade**, swags, rim with its fill, dotted lines (3.4 s) — nothing goes back up against gravity (Igor) |
+
+- **Pure black and white** (Igor: "remove every glass effect from the white ones"): in light slots the glass is a flat fill (`uSolid`:
+  black here, white once inverted) that only hides what is behind it — no refraction, light edges (EdgesGeometry rims off) or bloom;
+  every line, bead, drip and frosting stroke is solid black (no opacity levels, frosting `uSolid` = plain stroke). Lines are pulled a
+  hair toward the camera (`uZBias` 0.0002 NDC ≈ 0.01 world) so a line lying on a surface always beats its fill (polygonOffset on the
+  fill was unreliable across depth formats and broke the hidden-line occlusion).
+- Shortlist: no white card behind the illustration (`css/cake-3d.css`), the module's grey shows through the multiplied canvas.
+- Steps 1–3 never fade: each `SLOTCFG` entry has an `outro` list `[state key, start ms, duration ms(, 'up')]` applied after the stretch ends
+  (`'up'` keys grow 0 → 1 for things that fall: `dripFall`, `beadFall`)
+  (Igor: "the disappearances must be sequential"). Only a stretch without an outro would fade at the seams (`uGlobal`, 0.45 s).
+- Reduced motion: each light slot holds a still (90 % of its stretch; the shortlist its held moment).
+- `__cake3dAll[i].seg(ms)` jumps a light slot within its stretch (debugging).
+
+## Version 4 — glass 3D, slice hero (WebGL), 2026-11-19
+
+`versions/glass-3d-slice/` — the Glass 3D page with a different hero (Igor: "a slice of cake like this one, not animated, but reacting to the
+mouse"; reference: a cartoon pie slice with a dollop of cream). Hero `data-scene="cake-3d-slice"`; the four white modules are the Glass 3D ones.
+
+- Same scene and glass (`cake-3d.js`, `SLICE` mode): the cake parts are hidden and a wedge is built instead — **three glass layers** (base 0.1875,
+  middle 0.15, frosting 0.0825 — 75% of the first heights, Igor — gaps 0.022, camera target y 0.24; the same base / middle / frosting metaphor as the tiers) cut as a 52° sector of r 1.15, turned to a
+  three-quarter view (tip front-left, crust right and back), **white lines on every edge** (top and bottom outline of each layer, the three
+  vertical corners), dotted lines on the crust, a swag line with beads on the frosting's crust and the **whipped cream, cherry and stem of
+  Igor's 3D model `0016.obj`**, taken as they are (materials `01`, `09-cherry` and the small `03-coffee` piece), in glass, scale 0.31,
+  faint edge lines. The meshes live in `js/cake-3d-cream.js` (uint16-quantized positions + triangle indices, base64; regenerate from an
+  OBJ with `python3 cake/tools/obj-to-cream.py model.obj cake/js/cake-3d-cream.js`) — `make-version.py` loads it only on pages whose hero is `cake-3d-slice`. Without it the hero
+  falls back to the procedural screw-tip swirl.
+- **Not animated**: the scene holds still. It turns with the mouse (gyroscope on phones); hovering a layer lifts it, hovering the dollop makes it
+  bounce and turn once. Fixed camera (el 27°, zoom 1.6, look-at 0.3); the hero's 1.4 view scale doesn't apply.
+
+## WebP exports (index thumbnails)
+
+`cake/versions/<slug>/webp/<slot>.webp` holds every illustration as its page shows it, at 2x (1078 px wide), animated where the
+slot moves (15 fps, loops): the original PNGs as stills, the evolved-video chapters converted from their MP4s, the WebGL slots
+captured frame by frame from the running page (the glass-3d hero loop, the three steps; the shortlist and the slice hero are stills —
+they only move on hover or with a light ambient spin). The root index uses these files as its thumbnails (the template card was
+removed from the index). Regenerate everything with `bash cake/tools/export-webp.sh` (needs ffmpeg with libwebp, python3 + Pillow,
+node + playwright; `cake/tools/capture-webgl.js` drives each WebGL timeline and reads the canvas). The glass-3d hero WebP is ~9 MB.

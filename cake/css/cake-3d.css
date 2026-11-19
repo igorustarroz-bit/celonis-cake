@@ -21,3 +21,12 @@
   /* the hero media sits in the bottom-left; give the glass room to breathe */
   .secondary-hero .secondary-hero-media .cake-3d-stage { margin-top: -2rem; }
 }
+
+/* Light slots (white modules): the canvas renders the scene INVERTED (white page,
+   dark lines, milky glass) and is multiplied onto the module, so its white melts
+   into whatever light background the module has. */
+.cake-3d-stage.cake-3d-light canvas.cake-3d-canvas { mix-blend-mode: multiply; }
+.cake-3d-stage.cake-3d-light.cake-3d-off .cake-3d-fallback { filter: none; }
+/* Shortlist (M46): no white card behind the illustration — the module's grey shows
+   through the multiplied canvas (Igor, 2026-11-19) */
+.cake-shortlist__media.cake-media { background: transparent; }
