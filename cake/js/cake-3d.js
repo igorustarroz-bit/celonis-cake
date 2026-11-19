@@ -65,10 +65,10 @@
 
   /* ---------- LIVE KNOBS: window.CAKE3D (the tuner writes here) ---------- */
   var TUNE = window.CAKE3D = {
-    // glass — Igor's settings, 2026-11-18 (refract, frost, pieceMag,
-    // topDarken, body and pre retuned from the Data Core defaults)
+    // glass — Igor's settings, 2026-11-19 (transmission, refract, frost, pieceMag, topDarken,
+    // body, pre, bloom and black floor retuned from the Data Core defaults)
     tint:        { r: 1.8, g: 1.8, b: 1.8 },
-    transmission: 0.43,
+    transmission: 0.14,
     transmissionSpread: 0.14,
     refract:     0.89,
     frost:       0.66,
@@ -77,7 +77,7 @@
     pieceShift:  0.11,
     fresnel:     0.44,
     topClear:    0.92,
-    topDarken:   0.78,
+    topDarken:   0.25,
     edgeWhite:   0.44,
     skyTop:      '#eef4ff',
     skyHorizon:  '#8e9aad',
@@ -86,10 +86,10 @@
     rim:         1.16,
     pre:         0.15,
     backdrop:    '#e6ecf5',
-    bloom:       { strength: 0.16, radius: 0.26, threshold: 0.35 },
-    blackFloor:  0.05,   // crushes the bloom haze (see the floor pass)
+    bloom:       { strength: 0.1, radius: 0.1, threshold: 0.83 },
+    blackFloor:  0.045,   // crushes the bloom haze (see the floor pass)
     // line art (px = CSS pixels, constant at any zoom)
-    lines:       { px: 1.2, finePx: 0.85, opacity: 0.92, silhouettes: 1, backArc: 0.25 },
+    lines:       { px: 1.2, finePx: 0.85, opacity: 0.92, silhouettes: 1, backArc: 1 },   // backArc < 1 dims the far half of rims
     grid:        { opacity: 0.28, dash: 0.022 },
     drips:       { opacity: 0.8, flow: 0.12, dash: 0.045, duty: 0.55 },
     dots:        { px: 5, orbit: 0.12 },
@@ -108,7 +108,7 @@
   /* ---------- state (driven by the timeline) ---------- */
   // cam*: elevation (deg), zoom (× the fit of the finished cake), look-at height
   var state = {
-    camEl: 89, camZoom: 0.8, camY: 0,
+    camEl: 89, camZoom: 0.8, camY: 0, viewK: 1,
     frostOn: 0,
     fadeAll: 1, spin: 0, end: 0
   };
@@ -234,14 +234,18 @@
     'uniform vec2 uCenter; uniform vec2 uOffset; uniform float uMag; uniform float uShift;',
     'uniform vec3 uBody; uniform float uTransmission; uniform float uRefract; uniform float uSeed;',
     'uniform float uIri; uniform float uFres; uniform float uTopClear; uniform float uTopDarken;',
-    'uniform float uEdgeWhite; uniform vec3 uSkyTop; uniform vec3 uSkyHz; uniform vec3 uTint; uniform float uFade;',
+    'uniform float uEdgeWhite; uniform vec3 uSkyTop; uniform vec3 uSkyHz; uniform vec3 uTint; uniform float uFade; uniform float uPre;',
     'varying vec3 vN; varying vec3 vWN; varying vec2 vScreenUv;',
     'void main() {',
     '  vec3 N = normalize(vN);',
     '  float up = clamp(normalize(vWN).y, 0.0, 1.0);',
     '  vec2 rel = vScreenUv - uCenter;',
     '  vec2 buv = uCenter + rel * uMag + N.xy * uRefract + uOffset * uShift;',
-    '  vec3 trans = mix(texture2D(uBackdrop, buv).rgb, texture2D(uBackdropBlur, buv).rgb, uFrost);',
+    // the pre-pass covers MORE than the screen (uPre = 1 / margin), so a lens near the canvas
+    // edge still finds real image; beyond that, mirror instead of smearing the edge texels
+    '  vec2 suv = (buv - 0.5) * uPre + 0.5;',
+    '  suv = 1.0 - abs(1.0 - abs(suv));',
+    '  vec3 trans = mix(texture2D(uBackdrop, suv).rgb, texture2D(uBackdropBlur, suv).rgb, uFrost);',
     '  float topness = smoothstep(0.55, 0.95, up);',
     '  vec3 milky = mix(uBody, trans, uTransmission);',
     '  vec3 seeThru = trans * uTopDarken + uBody * 0.12;',
@@ -274,7 +278,7 @@
         uIri: { value: 0.1 }, uFres: { value: 0.85 }, uTopClear: { value: 0.85 }, uTopDarken: { value: 0.9 },
         uEdgeWhite: { value: 0.35 }, uSkyTop: { value: new THREE.Color('#eef4ff') },
         uSkyHz: { value: new THREE.Color('#8e9aad') }, uTint: { value: new THREE.Color(1, 1, 1) },
-        uFade: { value: 1 }
+        uFade: { value: 1 }, uPre: { value: 1 }
       }
     });
     m.userData.baseRefract = 0.13 + 0.06 * seed;
@@ -298,8 +302,12 @@
     geo.translate(0, -geo.boundingBox.min.y, 0);   // bottom at y = 0
     return geo;
   }
+  // segments per circle: at 24 the glass was a 24-gon and drifted 1–2 px off the (truly round) line rings
+  var CIRC = 64;          // ExtrudeGeometry doubles it for arcs → 128 points per circle
   function circleShape(r) {
-    var s = new THREE.Shape(); s.absarc(0, 0, r, 0, Math.PI * 2, false); return s;
+    // start/end seam at the back (shape +y → world −z): at angle 0 it sat on the right-hand silhouette,
+    // where the bevel's normals jump and drew a small bright wedge
+    var s = new THREE.Shape(); s.absarc(0, 0, r, Math.PI / 2, Math.PI / 2 + Math.PI * 2, false); return s;
   }
   // the video's star: four tips on the diagonals, deeply concave sides
   function starShape(R, inner) {
@@ -366,7 +374,7 @@
     '}'].join('\n');
   var LINE_F = [
     'uniform float uOpacity; uniform float uProgress; uniform float uDash; uniform float uDuty;',
-    'uniform float uSym; uniform float uBackOn; uniform float uBack;',
+    'uniform float uSym; uniform float uBackOn; uniform float uBack; uniform float uEdgeFade;',
     'varying float vU; varying float vDist; varying float vFront;',
     'void main() {',
     // uSym: grows from its start point in BOTH directions (the video's rings and frame)
@@ -374,6 +382,8 @@
     '  if (uu > uProgress || uOpacity <= 0.001) discard;',
     '  if (uDash > 0.0 && fract(vDist / uDash) > uDuty) discard;',
     '  float w = uBackOn > 0.5 ? mix(uBack, 1.0, smoothstep(-0.12, 0.12, vFront)) : 1.0;',
+    // uEdgeFade: lines on a cylinder wall fade as they turn toward the silhouette (no doubled edge)
+    '  if (uEdgeFade > 0.5) w *= smoothstep(0.12, 0.45, vFront);',
     '  gl_FragColor = vec4(vec3(1.0), uOpacity * w);',
     '}'].join('\n');
   var lines = [];
@@ -409,7 +419,8 @@
       vertexShader: LINE_V, fragmentShader: LINE_F, transparent: true, depthWrite: false, side: THREE.DoubleSide,
       uniforms: { uRes: RES, uWidth: { value: 2 }, uOpacity: { value: 1 }, uProgress: { value: 1 },
                   uDash: { value: o.dash || 0 }, uDuty: { value: o.duty || 0.5 },
-                  uSym: { value: o.sym ? 1 : 0 }, uBackOn: { value: o.back ? 1 : 0 }, uBack: BACK }
+                  uSym: { value: o.sym ? 1 : 0 }, uBackOn: { value: o.back ? 1 : 0 }, uBack: BACK,
+                  uEdgeFade: { value: o.edgeFade ? 1 : 0 } }
     });
     var mesh = new THREE.Mesh(g, m);
     mesh.frustumCulled = false;
@@ -475,19 +486,21 @@
 
   // plate + stand
   var plate = new THREE.Group(); root.add(plate);
-  var plateMesh = glassPiece(extrude(circleShape(PLATE_R), PLATE_H - 2 * 0.01, 0.01, 24), 0.34, 0.45, 0.3);
+  var plateMesh = glassPiece(extrude(circleShape(PLATE_R), PLATE_H - 2 * 0.01, 0.01, CIRC), 0.34, 0.45, 0.3);
   plate.add(plateMesh);
-  var plateTop = makeLine(circlePts(PLATE_R + 0.012, PLATE_H, 160), { closed: true, back: true }); plate.add(plateTop);
-  var plateBot = makeLine(circlePts(PLATE_R + 0.012, 0, 160), { closed: true, opacity: 0.6, back: true }); plate.add(plateBot);
+  var PB = 0.01, pRim = PLATE_R + 0.707 * PB + 0.003;   // on the plate's bevel, like the tiers
+  var plateTop = makeLine(circlePts(pRim, PLATE_H - 0.293 * PB, 160), { closed: true, back: true }); plate.add(plateTop);
+  var plateBot = makeLine(circlePts(pRim, 0.293 * PB, 160), { closed: true, opacity: 0.6, back: true }); plate.add(plateBot);
   var foot = new THREE.Group(); root.add(foot);
   var STEM_R = 0.13, STEM_H = 0.13, FOOT_R = 0.5, FOOT_H = 0.03;
-  var stemMesh = glassPiece(extrude(circleShape(STEM_R), STEM_H - 0.02, 0.01, 16), 0.3, 0.5, 0.2);
+  var stemMesh = glassPiece(extrude(circleShape(STEM_R), STEM_H - 0.02, 0.01, 48), 0.3, 0.5, 0.2);
   stemMesh.position.y = -STEM_H;
-  var footMesh = glassPiece(extrude(circleShape(FOOT_R), FOOT_H - 0.02, 0.01, 24), 0.36, 0.5, 0.25);
+  var footMesh = glassPiece(extrude(circleShape(FOOT_R), FOOT_H - 0.02, 0.01, CIRC), 0.36, 0.5, 0.25);
   footMesh.position.y = -STEM_H - FOOT_H;
   foot.add(stemMesh); foot.add(footMesh);
-  var footTop = makeLine(circlePts(FOOT_R + 0.012, -STEM_H, 120, LEFT), { closed: true, sym: true, back: true }); foot.add(footTop);
-  var footBot = makeLine(circlePts(FOOT_R + 0.012, -STEM_H - FOOT_H, 120, LEFT), { closed: true, sym: true }); foot.add(footBot);
+  var fRim = FOOT_R + 0.707 * 0.01 + 0.003;
+  var footTop = makeLine(circlePts(fRim, -STEM_H - 0.293 * 0.01, 120, LEFT), { closed: true, sym: true, back: true }); foot.add(footTop);
+  var footBot = makeLine(circlePts(fRim, -STEM_H - FOOT_H + 0.293 * 0.01, 120, LEFT), { closed: true, sym: true }); foot.add(footBot);
   // the two bold verticals on the front of the bottom tier, down to the stand
   var fronts = [-0.075, 0.075].map(function (x) {
     var z = Math.sqrt(Math.pow(TIERS[0].r + BEV + 0.006, 2) - x * x);
@@ -496,11 +509,24 @@
     return l;
   });
 
-  // silhouette pair: two verticals at the camera-facing tangents (drawn top → bottom)
+  // silhouette pair at the camera-facing tangents (drawn bottom → top). They follow the glass profile:
+  // straight along the wall, curving along the rounded bevel into the base ring and the rim, so they
+  // meet them exactly (Igor: "the side lines don't fit")
+  function silProfile(r, h, side) {
+    var pts = [], R = BEV + 0.001, k, a;
+    for (k = 0; k <= 4; k++) {                        // bottom bevel: 45° point → wall
+      a = -Math.PI / 4 * (1 - k / 4);
+      pts.push(new THREE.Vector3(side * (r + Math.cos(a) * R), BEV + Math.sin(a) * BEV, 0));
+    }
+    for (k = 0; k <= 4; k++) {                        // top bevel: wall → 45° point
+      a = Math.PI / 4 * (k / 4);
+      pts.push(new THREE.Vector3(side * (r + Math.cos(a) * R), h - BEV + Math.sin(a) * BEV, 0));
+    }
+    return pts;
+  }
   function silPair(r, h) {
     var g = new THREE.Group();
-    var L = makeLine([new THREE.Vector3(-r, 0, 0), new THREE.Vector3(-r, h, 0)]);
-    var R = makeLine([new THREE.Vector3(r, 0, 0), new THREE.Vector3(r, h, 0)]);
+    var L = makeLine(silProfile(r, h, -1)), R = makeLine(silProfile(r, h, 1));
     g.add(L); g.add(R); g.userData.l = [L, R];
     return g;
   }
@@ -509,47 +535,51 @@
   // rim draws, the glass wall comes DOWN from the rim, the dotted grid and the swags follow.
   var tiers = TIERS.map(function (T, i) {
     var grp = new THREE.Group(); grp.position.y = BASE[i]; root.add(grp);
-    var rr = T.r + BEV + 0.004;
-    var top = makeLine(circlePts(rr, T.h, 160, LEFT), { closed: true, sym: true, back: true }); grp.add(top);
+    var rr = T.r + BEV + 0.001;                          // the side wall (swags, grid, silhouettes)
+    // rim and base rings sit ON the rounded bevel (its 45° point), not at the wall's radius at cap height —
+    // there they floated outside the glass corner (Igor: "the cap's top line doesn't fit it")
+    var rRim = T.r + 0.707 * (BEV + 0.001), yOff = 0.293 * BEV;
+    var top = makeLine(circlePts(rRim, T.h - yOff, 160, LEFT), { closed: true, sym: true, back: true }); grp.add(top);
     var heads = makeHeads(grp);
     var wall = new THREE.Group(); grp.add(wall);       // scale.y = growth, rises from the tier's base
     var inner = new THREE.Group(); wall.add(inner);
-    var mesh = glassPiece(extrude(circleShape(T.r), T.h - 2 * BEV, BEV, 24), T.seed, T.g, 0.22);
+    var mesh = glassPiece(extrude(circleShape(T.r), T.h - 2 * BEV, BEV, CIRC), T.seed, T.g, 0.22);
     mesh.userData.tier = grp;
     inner.add(mesh);
-    var sil = silPair(rr, T.h); inner.add(sil);
+    var sil = silPair(T.r, T.h); inner.add(sil);
     var grid = [];
     for (var k = 0; k < 28; k++) {
       var a = k / 28 * Math.PI * 2 + i * 0.3;
       var gl = makeLine([new THREE.Vector3(Math.cos(a) * rr, 0.012, Math.sin(a) * rr),        // drawn bottom → top
                          new THREE.Vector3(Math.cos(a) * rr, T.h - 0.012, Math.sin(a) * rr)],
-                        { fine: true, dash: 0.022, duty: 0.35 });
+                        { fine: true, dash: 0.022, duty: 0.35, edgeFade: true });
       inner.add(gl); grid.push(gl);
     }
     var sw = [], NS = 320, sag = T.h * 0.36;
+    var PH = Math.PI / T.swags;          // half a scallop: no joint (and no bead) sits on the left/right silhouettes
     for (var s = 0; s < NS; s++) {
       var th = LEFT + s / NS * Math.PI * 2;
-      var y = T.h - 0.02 - sag * Math.abs(Math.sin((th - LEFT) * T.swags / 2));
-      sw.push(new THREE.Vector3(Math.cos(th) * (rr + 0.002), y, Math.sin(th) * (rr + 0.002)));
+      var y = T.h - BEV - sag * Math.abs(Math.sin((th - LEFT - PH) * T.swags / 2));   // joints where the wall meets the bevel
+      sw.push(new THREE.Vector3(Math.cos(th) * rr, y, Math.sin(th) * rr));
     }
     var swag = makeLine(sw, { closed: true, sym: true }); inner.add(swag);
     // rim beads (= the swag joints): fly in from a scattered cloud above the rim
     var joints = [];
     for (var q = 0; q < T.swags; q++) {
-      var tj = LEFT + q / T.swags * Math.PI * 2;
+      var tj = LEFT + PH + q / T.swags * Math.PI * 2;
       var d = makeDot(grp, 0, 0, 0);
-      var u = q / T.swags;
+      var u = (q + 0.5) / T.swags;
       d.userData.u = Math.min(u, 1 - u) * 2;          // symmetric order, like the swag
-      d.userData.to = new THREE.Vector3(Math.cos(tj) * (rr + 0.006), T.h - 0.02, Math.sin(tj) * (rr + 0.006));
+      d.userData.to = new THREE.Vector3(Math.cos(tj) * rr, T.h - BEV, Math.sin(tj) * rr);   // on the swag joint, on the side line
       var fa = tj + (rnd() - 0.5) * 0.9, fr = rr * (0.55 + 0.6 * rnd());
       d.userData.from = new THREE.Vector3(Math.cos(fa) * fr, T.h + 0.12 + 0.35 * rnd(), Math.sin(fa) * fr);
       d.userData.delay = rnd() * 0.35;
       joints.push(d);
     }
-    var bottom = makeLine(circlePts(rr, 0.0, 160, LEFT), { closed: true, back: true }); grp.add(bottom);
+    var bottom = makeLine(circlePts(rRim, yOff, 160, LEFT), { closed: true, back: true }); grp.add(bottom);
     grp.userData = { lift: 0, kind: 'tier' };
     return { T: T, i: i, grp: grp, wall: wall, mesh: mesh, top: top, heads: heads, sil: sil, grid: grid,
-             swag: swag, joints: joints, bottom: bottom, rr: rr };
+             swag: swag, joints: joints, bottom: bottom, rr: rr, rRim: rRim, yTop: T.h - yOff };
   });
 
   // star: four beads, then the concave arcs between them, then the glass
@@ -716,6 +746,8 @@
     ['footIn', 1, 10600, 900, 'outCubic'],
     // bottom tier
     // each tier: the dotted side lines grow UP (glass rising with them), then the cap: rim beads, rim, swags
+    // Igor: view scale 1 for the flat drawing and the tilt, 1.4 once the cake starts going up
+    ['viewK', 1.4, 9900, 1600, 'inOutSine'],
     ['grid0', 1, 10300, 1000, 'inOutSine'], ['grow0', 1, 10400, 1000, 'inOutSine'],
     ['rimDots0', 1, 11100, 800, 'outCubic'], ['rim0', 1, 11400, 800, 'inOutSine'], ['swag0', 1, 12200, 800, 'inOutSine'],
     // middle tier
@@ -735,7 +767,7 @@
     ['frostOn', 0, 27400, 1400, 'inOutSine'],
     ['fadeAll', 0, 27600, 2000, 'inOutSine'], ['dotIn', 0, 27600, 2000, 'inOutSine'],
     ['camEl', 89, 28300, 1500, 'inOutCubic'], ['camZoom', 0.8, 28300, 1500, 'inOutCubic'],
-    ['camY', 0, 28300, 1500, 'inOutCubic']
+    ['camY', 0, 28300, 1500, 'inOutCubic'], ['viewK', 1, 28300, 1500, 'inOutCubic']
   ];
   var RESET = { ringIn: 0, ringOut: 0, ringFaint: 0, midDots: 0, rays: 0, frame: 0, beads: 0, frameRot: 0,
     raysOut: 0, dotsOut: 0, plateIn: 0, fronts: 0, footIn: 0, starDots: 0, starDraw: 0, starIn: 0,
@@ -768,7 +800,7 @@
   }
   function finalState() {
     Object.keys(RESET).forEach(function (k) { state[k] = 1; });
-    state.frostOn = 1; state.camEl = 24; state.camZoom = 0.58; state.camY = 0.52;
+    state.viewK = 1.4; state.frostOn = 1; state.camEl = 24; state.camZoom = 0.58; state.camY = 0.52;
   }
   function applySpeed() { if (tl && tl.speed !== undefined) tl.speed = TUNE.motion.speed; }
 
@@ -822,6 +854,9 @@
 
   /* ---------- sizing ---------- */
   var W = 0, H = 0, PPW = 100, fitPPW = 100, dpr = 1;
+  // the glass refracts a pre-pass of the scene; rendering it wider than the view keeps
+  // the lenses fed when the cake touches the canvas edges (Igor: 'the inner light breaks')
+  var PRE_MARGIN = 1.4;
   function resize() {
     var r = stage.getBoundingClientRect();
     if (!r.width) return;
@@ -831,9 +866,9 @@
     renderer.setSize(W, H, false);
     if (composer) { composer.setPixelRatio(dpr); composer.setSize(W, H); }
     if (fxaaPass) fxaaPass.material.uniforms.resolution.value.set(1 / (W * dpr), 1 / (H * dpr));
-    var pr = TUNE.quality.preRes || 1;
+    var pr = (TUNE.quality.preRes || 1) * PRE_MARGIN;   // the pre-pass covers PRE_MARGIN × the view
     backRT.setSize(Math.max(2, Math.round(W * dpr * pr)), Math.max(2, Math.round(H * dpr * pr)));
-    var bw = Math.max(2, Math.round(W * dpr * 0.25)), bh = Math.max(2, Math.round(H * dpr * 0.25));
+    var bw = Math.max(2, Math.round(W * dpr * 0.25 * PRE_MARGIN)), bh = Math.max(2, Math.round(H * dpr * 0.25 * PRE_MARGIN));
     blurRT1.setSize(bw, bh); blurRT2.setSize(bw, bh);
     blurMat.uniforms.uTexel.value.set(1 / bw, 1 / bh);
     RES.value.set(W / 2, H / 2);
@@ -846,7 +881,7 @@
     frame();
   }
   function frame() {
-    PPW = fitPPW * state.camZoom * TUNE.view.scale;
+    PPW = fitPPW * state.camZoom * state.viewK * TUNE.view.scale;
     lookY = state.camY;
     placeCamera();
     camera.left = -W / PPW / 2; camera.right = W / PPW / 2;
@@ -871,12 +906,10 @@
         uniforms: { tDiffuse: { value: null }, uFloor: { value: 0.05 } },
         vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         fragmentShader: 'uniform sampler2D tDiffuse; uniform float uFloor; varying vec2 vUv;' +
-          'void main(){ vec4 c = texture2D(tDiffuse, vUv);' +
-          // soft edge mask: the bloom haze is clipped by the canvas edge, which reads as a box on small screens
-          '  vec2 e = smoothstep(vec2(0.0), vec2(0.07), vUv) * smoothstep(vec2(0.0), vec2(0.07), 1.0 - vUv);' +
-          '  float haze = 1.0 - smoothstep(0.0, 0.25, max(max(c.r, c.g), c.b));' +
-          '  float m = mix(1.0, e.x * e.y, haze);' +
-          '  gl_FragColor = vec4(max(c.rgb * m - uFloor, 0.0) / (1.0 - uFloor), 1.0); }'
+          // (no edge mask any more: it darkened the glass wherever the cake touched the canvas edge)
+          // soft knee: haze below ~uFloor fades smoothly to black (a hard subtract drew stepped contours in the bloom halo)
+          'void main(){ vec4 c = texture2D(tDiffuse, vUv); float l = max(max(c.r, c.g), c.b);' +
+          '  gl_FragColor = vec4(c.rgb * smoothstep(uFloor * 0.6, uFloor * 1.8, l), 1.0); }'
       });
       composer.addPass(floorPass);
     }
@@ -1005,7 +1038,7 @@
       t.wall.scale.y = 1;
       t.mesh.userData.fade = tf * ease(rimP);
       setLine(t.top, rimP, tf);
-      setHeads(t.heads, t.rr, TIERS[i].h, rimP, tf, dotR);
+      setHeads(t.heads, t.rRim, t.yTop, rimP, tf, dotR);
       setLine(t.bottom, 1, tf * ease(state['grid' + i] / 0.12));  // base ring first, same width as the rim
       t.sil.rotation.y = -root.rotation.y;
       t.sil.userData.l.forEach(function (l) { setLine(l, state['grid' + i], tf * TUNE.lines.silhouettes); });
@@ -1090,10 +1123,14 @@
       if (!cm.visible) continue;
       cm.getWorldPosition(_wp);
       _wp.project(camera);
-      cm.material.uniforms.uCenter.value.set(_wp.x * 0.5 + 0.5, _wp.y * 0.5 + 0.5);
+      cm.material.uniforms.uCenter.value.set(clamp01(_wp.x * 0.5 + 0.5), clamp01(_wp.y * 0.5 + 0.5));   // half-off-screen pieces keep their lens on screen
+      cm.material.uniforms.uPre.value = 1 / PRE_MARGIN;
     }
 
-    // PRE-PASS → backRT, frost blur
+    // PRE-PASS → backRT (wider frustum: PRE_MARGIN), frost blur
+    var cl = camera.left, cr = camera.right, ct = camera.top, cb = camera.bottom;
+    camera.left = cl * PRE_MARGIN; camera.right = cr * PRE_MARGIN; camera.top = ct * PRE_MARGIN; camera.bottom = cb * PRE_MARGIN;
+    camera.updateProjectionMatrix();
     bgQuad.visible = true;
     bgQuad.quaternion.copy(camera.quaternion);
     bgQuad.position.copy(VIEW).multiplyScalar(-8); bgQuad.position.y += lookY;
@@ -1111,6 +1148,8 @@
     renderer.setRenderTarget(null);
     for (gi = 0; gi < glassMeshes.length; gi++) glassMeshes[gi].material = glassMeshes[gi].userData.mainMat;
     bgQuad.visible = false;
+    camera.left = cl; camera.right = cr; camera.top = ct; camera.bottom = cb;
+    camera.updateProjectionMatrix();
 
     if (composer) composer.render(); else renderer.render(scene, camera);
     schedule();
@@ -1139,7 +1178,7 @@
     canvas.style.cursor = 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '") 14 14, crosshair';
   }
 
-  window.__cake3d = { state: state, renderer: renderer, camera: camera, scene: scene, timeline: function () { return tl; } };
+  window.__cake3d = { state: state, renderer: renderer, camera: camera, scene: scene, passes: function () { return { bloom: bloomPass, floor: floorPass }; }, timeline: function () { return tl; } };
 
   /* ---------- go ---------- */
   resize();

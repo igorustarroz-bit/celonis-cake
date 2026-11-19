@@ -95,18 +95,35 @@ original PNGs (when they get 3D they go in dark cards).
 
 - Proportions from the video's end frames: plate r 1, stand (stem r 0.13 + foot r 0.5), tiers r 0.80/0.62/0.42,
   h 0.36/0.32/0.28, star r 0.30.
-- Far halves of rims are dimmed once the view is 3D (`lines.backArc`, 0.25), like the video's hidden-line drawing.
+- View scale (Igor): 1 for the flat drawing and the tilt, **1.4 from the moment the cake starts going up** (timeline `viewK`, 9.9–11.5 s
+  in the video's times), back to 1 during the final black. The tuner's `view.scale` multiplies on top (default 1).
+- Glass at the canvas edges (Igor: "the inner light breaks when the shape touches the top and bottom"): the refraction pre-pass is rendered
+  with a 1.4× wider frustum (`PRE_MARGIN`), the shader maps into it (`uPre`) and mirrors instead of clamping, lens centres are clamped on
+  screen. The final pass has **no edge mask** any more (it darkened the glass wherever the cake touched the edge), and the black floor is a
+  **soft knee** (`smoothstep(0.6·floor, 1.8·floor)` on the brightest channel) instead of a hard subtract, which drew stepped contours in the
+  bloom halo; haze below ~0.03 still goes to pure black, so no grey box around the canvas.
+- Rim and base rings sit **on the rounded bevel** (its 45° point: r + 0.707·bevel, 0.293·bevel in from the face) — at the wall's radius and the
+  cap's height they floated outside the glass corner (Igor: "the cap's top line doesn't fit it"). Same for the plate and the stand.
+- The glass cylinders are truly round: 64 curve segments (128 points per circle; at 24 they were polygons and drifted 1–2 px off the round
+  line rings), with the circle's start/end seam at the back (on the right-hand silhouette it drew a small bright wedge). Rims are drawn at
+  full strength all round (`lines.backArc` = 1): with a glass cap the whole ellipse is visible, so a dimmer far half read as a mismatch.
+- Every line sits on the glass edge (+0.001, was +0.003 ≈ 1 px outside). Swags are offset by half a scallop so no joint bead lands on the
+  left/right silhouettes (it made a bump where the side line meets the rim), and the dotted wall lines fade as they turn toward the silhouette
+  (`edgeFade`, smoothstep 0.12–0.45 of the facing) so none doubles the edge.
+- Side silhouettes follow the glass profile: straight along the wall (r + bevel), then along the rounded bevel into the base ring and the rim,
+  so they meet them exactly (Igor: "the side lines don't fit"). Swag joints and their beads sit where the wall meets the bevel, on the side line.
+- `lines.backArc` (< 1) can still dim the far half of rims once the view is 3D, like the video's hidden-line drawing (default 1, off).
 - **Every line is a screen-space ribbon** (`makeLine`): constant pixel width at any zoom (`lines.px` 2, `lines.finePx` 1.2),
   drawn on by a progress uniform, occluded by the glass, optional dash. Each tier has its bottom edge at the same width
   as its top edge (Igor). Ribbons are `DoubleSide` — their winding flips with the view.
 - Glass fades through a `uFade` uniform (to black, which the screen blend makes transparent): nothing pops out —
   the star fills in over 1.5 s and the whole cake dissolves over 2.4 s.
-- Glass defaults = Igor's tuning of 2026-11-18 (refract 0.89, frost 0.66, pieceMag 0.87, topDarken 0.78, body 0.65, pre 0.15);
-  the rest as the Data Core.
+- Glass defaults = Igor's tuning of 2026-11-19 (transmission 0.14, refract 0.89, frost 0.66, pieceMag 0.87, topDarken 0.25, body 0.65,
+  pre 0.15, bloom 0.1 / 0.1 / 0.83, black floor 0.045); the rest as the Data Core.
 - Hover: a tier lifts, the star spins (also every ~4 s once seated). Mouse parallax; gyroscope on phones (`js/tilt-parallax.js`).
   Reduced motion: the finished cake, still (timeline paused at 27 s).
 - Rendering only while the hero is on screen. The canvas is opaque black and **screen-blended** onto the hero (its circles show
-  through); a final pass crushes the bloom haze to pure black and softens it at the canvas edges (otherwise a grey box shows).
+  through); a final soft-knee pass takes the faintest bloom haze to pure black (otherwise a grey box shows).
 - Stage is a `<figure>`, not a `<div>`: `secondary-hero.css` absolutely positions every `.secondary-hero-wrapper div:first-child`.
 - No WebGL → `img/hero.png` fallback (`.cake-3d-off`).
 - Tuner (key T, `window.CAKE3D`, `CAKE3D_INFO()`): line art, motion & view (+ timeline read-out), the full glass set,
