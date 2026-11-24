@@ -21,6 +21,8 @@
      step-3        drawing 4: board, tier rising, rim, star; the frosting lines
                    fall onto the top (fading upwards, beads riding them) and the
                    trails empty downwards; then everything undraws in sequence
+   hero (story)  version classic-3d-story: the four drawings told as one loop
+                   of 28.2 s, chapters as glass-3d's hero (see "the story" below)
    The renderer, glass pipeline, screen-space lines, beads, post chain,
    inversion and tuner knobs (window.CAKE3D, key T) are those of js/cake-3d.js
    (copied, so glass-3d and glass-3d-slice stay untouched).
@@ -517,6 +519,7 @@
     var sl = [-1, 1].map(function (s) {
       var pts = [V(s * (r + BEV + 0.001), o.silFrom || 0, 0)];
       for (var k = 0; k <= 4; k++) { var a = Math.PI / 4 * (k / 4); pts.push(V(s * (r + Math.cos(a) * (BEV + 0.001)), h - BEV + Math.sin(a) * BEV, 0)); }
+      if (o.silDown) pts.reverse();                 // story: the side lines come DOWN from the rim
       var l = makeLine(pts); sil.add(l); return l;
     });
     grp.userData = { lift: 0, base: 0 };
@@ -542,6 +545,8 @@
 
   var SCENE = /step-1/.test(SLOT) && LIGHT ? 'frame' : /step-2/.test(SLOT) && LIGHT ? 'layers'
             : /step-3/.test(SLOT) && LIGHT ? 'frosting' : 'cake';
+  // story: the hero of classic-3d-story — the four drawings told as one loop (see below)
+  var STORY = !LIGHT && /story/.test(stage.getAttribute('data-scene') || '');
   var camEl = SCENE === 'frame' ? 89.5 : EL;
   var LOOP = 0;                          // light slots: loop length (ms); 0 = still (hero, shortlist)
 
@@ -588,6 +593,97 @@
     fit(V(-1, 0, 0), V(1, 0, 0), V(0, 0, 1), V(0, 0, -1), V(0, -(824 - 660) * Hk, 1), V(0, T0.h + T1.h + 0.03, -T1.r));
     parts.cake = { board: board, T0: T0, T1: T1, starG: starG, star: star, beads: beads, drips: drips, riders: riders };
   })();
+
+
+  /* ---------- the story (version classic-3d-story, hero): all four drawings in one loop ----------
+     Igor, 2026-11-24: "a fusion of all of them, very like the glass-3d hero, but with the final illustrations
+     and in black and white (negative)". Same chapters as glass-3d's hero, told with the drawings:
+       A  0–5 s     drawing 2 seen from above: inner ring, outer ring (= the board's rim), rays bead-first, frame
+       B  5–6.6 s   the frame turns, rays go back into the ring, frame and inner ring undraw; FAST tilt to 3D
+       C  6.4–12 s  drawing 3: the board's dashed drips run; each tier = rim, dashed drips down its wall, the wall
+                    RISES up to the rim (fill + side lines, hiding what is behind bit by bit), the wall drips run off
+       D  12.5–19 s drawing 4: close-up on the top, the star draws, the frosting falls onto it
+       E  19–25 s   pull back to drawing 1: beads pop in, beads slide down the drips, the star spins; hold
+       F  25–28 s   undraw in sequence (nothing goes back up), tilt back to the flat view, the board's rim last */
+  if (STORY) (function () {
+    var c = parts.cake, S = 1 / 244;                 // drawing 2 px → units: its outer ring IS the board's rim (r 1)
+    var fg = new THREE.Group(); fg.position.y = 0.002; root.add(fg);
+    var rayG = new THREE.Group(); fg.add(rayG);
+    function P(deg, d) { var a = deg * Math.PI / 180; return V(Math.cos(a) * d * S, 0, -Math.sin(a) * d * S); }
+    var R1 = 102 * S;
+    var inner = makeLine(circlePts(R1, 0, 160, Math.PI), { closed: true, sym: true }); fg.add(inner);
+    var heads = [0, 1, 2, 3].map(function () { return makeDot(fg, 0, 0, 0); });
+    var RAYS = [[0, 244, 538, 0, [343, 463]], [30, 248, 532, 1, []], [60, 247, 465, 0, [306]], [90, 244, 404, 0, [330]],
+                [120, 248, 378, 1, []], [150, 244, 624, 0, [385, 532]], [180, 244, 461, 0, [357]], [210, 243, 624, 1, []],
+                [240, 245, 384, 0, [313]], [270, 244, 396, 0, [331]], [300, 248, 456, 1, []], [330, 244, 533, 0, [375]]];
+    var rays = RAYS.map(function (q, i) {
+      var A = P(q[0], q[1]), B = P(q[0], q[2]);
+      var l = makeLine([A, B], q[3] ? { dash: 0.065, duty: 0.55 } : {}); rayG.add(l);
+      return { l: l, A: A, B: B, head: makeDot(rayG, A.x, 0, A.z), delay: [0, 4, 1, 7, 10, 3, 6, 9, 2, 8, 11, 5][i] / 11,
+               beads: q[4].map(function (d) { var m = makeDot(rayG, 0, 0, 0); m.position.copy(P(q[0], d)); m.userData.t = (d - q[1]) / (q[2] - q[1]); return m; }) };
+    });
+    var FX = 462 * S, FZ = 330.5 * S;
+    var frameL = makeLine([V(-FX, 0, 0), V(-FX, 0, -FZ), V(FX, 0, -FZ), V(FX, 0, FZ), V(-FX, 0, FZ)], { closed: true, sym: true }); rayG.add(frameL);
+    // drawing 3 on the tiers: dashed drips down the front of each wall, from its rim
+    function wallDrips(Ti, n, seed) {
+      var r2 = mulberry32(seed), out = [];
+      for (var k = 0; k < n; k++) {
+        var a = Math.PI * (0.06 + 0.88 * k / (n - 1)), rr = Ti.r + BEV + 0.004;
+        var len = Ti.h * (0.35 + 0.6 * r2());
+        var d = makeDrip(Ti.grp, V(Math.cos(a) * rr, Ti.yTop, Math.sin(a) * rr), len, 0.028);
+        d.delay = k / (n - 1); out.push(d);
+      }
+      return out;
+    }
+    var wd0 = wallDrips(c.T0, 11, 7), wd1 = wallDrips(c.T1, 9, 11);
+    // a black cap under each tier's rim, filled as the rim draws (same sector, both ways from the left): from the first
+    // stroke the rim is a solid lid that hides what is behind it — never see-through (Igor)
+    var capMat = new THREE.ShaderMaterial({
+      uniforms: { uProg: { value: 0 } },
+      vertexShader: 'varying vec2 vP; void main(){ vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'uniform float uProg; varying vec2 vP; void main(){' +
+        '  float a = atan(vP.y, vP.x); float d = abs(abs(a) - 3.14159265) / 3.14159265;' +   // 0 at the left, 1 at the right
+        '  if (d > uProg) discard; gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }'
+    });
+    function cap(Ti) {
+      var g = new THREE.CircleGeometry(Ti.rRim, 128); g.rotateX(-Math.PI / 2);
+      var m = new THREE.Mesh(g, capMat.clone()); m.position.y = Ti.yTop - 0.001; m.renderOrder = 1;
+      Ti.grp.add(m); return m;
+    }
+    c.T0.cap = cap(c.T0); c.T1.cap = cap(c.T1);
+    // drawing 4 on the top tier: the frosting falls onto it (landing points of drawing 4, scaled to this tier)
+    var frostMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, toneMapped: false, uniforms: { uOpacity: { value: 1 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'uniform float uOpacity; varying vec2 vUv; void main(){ gl_FragColor = vec4(vec3(1.0), pow(1.0 - vUv.y, 1.15) * uOpacity); }'
+    });
+    var k4 = c.T1.r / 408, LEN = 185 * k4 / CE;
+    var LAND = [[179, 382], [201, 277, 79], [283, 432, 74], [299, 222], [413, 200], [413, 467], [543, 200],
+                [543, 478, 48], [665, 200, 72], [665, 467], [779, 222], [795, 432], [877, 277, 85], [899, 382]];
+    var fall = LAND.map(function (q, i) {
+      var geo = new THREE.PlaneGeometry(1, LEN); geo.translate(0, LEN / 2, 0);
+      var m = new THREE.Mesh(geo, frostMat.clone()); m.renderOrder = 3; c.T1.grp.add(m);
+      return { m: m, b: q[2] ? makeDot(c.T1.grp, 0, 0, 0) : null, x: (q[0] - 540) * k4, z: (q[1] - 330) * k4 / SE,
+               by: q[2] ? q[2] * k4 / CE : 0, ph: [0, 0.55, 0.2, 0.75, 0.4, 0.9, 0.1, 0.65, 0.3, 0.85, 0.5, 0.05, 0.7, 0.35][i] };
+    });
+    parts.story = { inner: inner, heads: heads, rays: rays, rayG: rayG, frame: frameL, R1: R1, wd: [wd0, wd1], fall: fall, LEN: LEN };
+    LOOP = 28200;
+  })();
+
+  // the story's camera: [ms, elevation °, zoom (× the final fit), look-at height, x offset (× final)]
+  var CAMK = [[0, 89.5, 0.7, 0, 0], [5800, 89.5, 0.72, 0, 0], [6600, EL, 0.85, 0.15, 0], [8000, EL, 1.0, 0.35, 0],
+              [10600, EL, 1.1, 0.75, 0], [12500, EL, 1.1, 0.95, 0], [13600, EL, 1.7, 1.0, 0], [18200, EL, 1.7, 1.0, 0],
+              [20000, EL, 1, -1, 1], [25200, EL, 1, -1, 1], [26800, 89.5, 0.7, 0, 0], [28200, 89.5, 0.7, 0, 0]];
+  var cam = { el: EL, zoom: 1, y: 0, x: 0 }, YF = 0, XF = 0, PPW0 = 100;
+  function camAt(t) {
+    var i = 0;
+    while (i < CAMK.length - 2 && t >= CAMK[i + 1][0]) i++;
+    var a = CAMK[i], b = CAMK[i + 1], k = Math.max(0, Math.min(1, (t - a[0]) / (b[0] - a[0])));
+    k = k * k * (3 - 2 * k);
+    cam.el = a[1] + (b[1] - a[1]) * k; cam.zoom = a[2] + (b[2] - a[2]) * k;
+    var ya = a[3] === -1 ? YF : a[3], yb = b[3] === -1 ? YF : b[3];          // −1 = the final framing (YF, set in resize())
+    cam.y = ya + (yb - ya) * k; cam.x = (a[4] + (b[4] - a[4]) * k) * XF;
+  }
 
   /* ---------- the data frame (drawing 2): step 1 — flat, seen from above ----------
      frame 924 × 661 px; rings r 244 and 102; twelve rays every 30° (dashed at 30, 120, 210, 300),
@@ -677,7 +773,7 @@
   /* ---------- star spin (ambient + hover) and hover lifts — as in glass-3d ---------- */
   var spin = { p: 0, busy: false, a: 0 };
   function spinStar() {
-    if (reduced || spin.busy || SCENE !== 'cake') return false;
+    if (reduced || spin.busy || SCENE !== 'cake' || STORY) return false;
     var an = window.anime;
     if (!an || !an.animate) return false;
     spin.busy = true; spin.p = 0;
@@ -750,9 +846,17 @@
     var M = LIGHT ? 1.08 : 1.12;                     // a little air (the hero turns with the mouse)
     PPW = Math.min(W / ((x1 - x0) * M), H / ((y1 - y0) * M)) * TUNE.view.scale;
     CX = (x0 + x1) / 2; CY = (y0 + y1) / 2;
+    PPW0 = PPW; YF = CY / CE; XF = CX;              // story: the final framing
     frame();
   }
   function frame() {
+    if (STORY) {                                   // the story's camera (camAt): elevation, zoom, look-at height
+      state.camEl = cam.el; lookY = cam.y; placeCamera(); PPW = PPW0 * cam.zoom;
+      camera.left = cam.x - W / PPW / 2; camera.right = cam.x + W / PPW / 2;
+      camera.top = H / PPW / 2; camera.bottom = -H / PPW / 2;
+      camera.updateProjectionMatrix();
+      return;
+    }
     state.camEl = camEl;
     lookY = 0;
     placeCamera();
@@ -855,8 +959,93 @@
   var dashOff = 0;
 
   function drive(t, dt, dotR) {
+    /* --- the story (hero of classic-3d-story): everything is a function of t, so the loop is seamless --- */
+    if (parts.story) {
+      var c = parts.cake, s = parts.story, OUT = 25200, o = t - OUT;
+      function outK(a, d) { return o > 0 ? K(o, a, d) : 0; }
+      // A · the data frame from above; the outer ring is the board's rim (it stays to the end, undrawn last)
+      var pIn = K(t, 0, 900) * (1 - K(t, 5900, 500));
+      var pOut = K(t, 600, 1100) * (1 - outK(2100, 600));
+      setLine(s.inner, pIn, 1); setLine(c.board.rim, pOut, 1);
+      [[s.R1, pIn, 0], [c.board.r + 0.005, pOut, 2]].forEach(function (q) {
+        for (var k = 0; k < 2; k++) {
+          var a = Math.PI + (k ? 1 : -1) * q[1] * Math.PI, h = s.heads[q[2] + k];
+          h.position.set(Math.cos(a) * q[0], 0, Math.sin(a) * q[0]);
+          setDot(h, q[1] > 0.002 && q[1] < 0.998 && t < 5000 ? 1 : 0); h.scale.setScalar(dotR);
+        }
+      });
+      // B · the frame turns a little, the rays go back into the ring, the frame undraws
+      s.rayG.rotation.y = -0.07 * K(t, 4800, 800);
+      s.rays.forEach(function (r) {
+        var p = K(t, 1500 + r.delay * 1300, 650) * (1 - K(t, 5500 + r.delay * 400, 400));
+        setLine(r.l, p, 1);
+        r.head.position.lerpVectors(r.A, r.B, p);
+        setDot(r.head, p > 0.002 && p < 0.998 && t < 5000 ? 1 : 0); r.head.scale.setScalar(dotR);
+        r.beads.forEach(function (b) { setDot(b, p >= b.userData.t && t < 5450 + r.delay * 300 ? 1 : 0); b.scale.setScalar(dotR); });
+      });
+      setLine(s.frame, K(t, 2900, 1200) * (1 - K(t, 5400, 500)), 1);
+      c.board.mesh.userData.fade = pOut > 0.001 ? 1 : 0;           // the board is a solid disc as soon as its rim exists
+      // C · drawing 3: the board's drips run, then each tier: rim, wall drips, the wall comes down, the drips run off
+      c.board.grp.position.y = c.board.grp.userData.lift;
+      c.drips.forEach(function (d, i) {
+        setLine(d.l, K(t, 6400 + i / 11 * 600, 700), 1);
+        d.l.material.uniforms.uStart.value = outK(1000 + i / 11 * 300, 700);
+        d.l.material.uniforms.uDashOff.value = dashOff;
+      });
+      [[c.T0, 7000, s.wd[0], 1300, 900], [c.T1, 9300, s.wd[1], 700, 400]].forEach(function (q) {
+        var Ti = q[0], t0 = q[1], wd = q[2], oRim = q[3], oWall = q[4];
+        Ti.grp.position.y = Ti.grp.userData.base + Ti.grp.userData.lift;
+        Ti.sil.rotation.y = -root.rotation.y;
+        var rp = K(t, t0, 800) * (1 - outK(oRim, 400));
+        setLine(Ti.rim, rp, 1);
+        Ti.cap.material.uniforms.uProg.value = rp; Ti.cap.visible = rp > 0.001;
+        wd.forEach(function (d) {
+          setLine(d.l, K(t, t0 + 400 + d.delay * 500, 700), 1);
+          d.l.material.uniforms.uStart.value = K(t, t0 + 2000 + d.delay * 300, 500);   // run off, downwards
+          d.l.material.uniforms.uDashOff.value = dashOff;
+        });
+        // the wall RISES from the tier below up to its rim (Igor: a cap appearing at once hid the lines behind it too
+        // abruptly) — what it hides goes under it bit by bit; on the way out it shrinks back onto its base
+        var wall = K(t, t0 + 1000, 1400) * (1 - outK(oWall, 500));
+        Ti.sl.forEach(function (l) { setLine(l, wall, TUNE.lines.silhouettes); });
+        Ti.mesh.position.y = 0; Ti.mesh.scale.y = Math.max(0.001, wall);
+        Ti.mesh.userData.fade = wall > 0.002 ? 1 : 0;
+      });
+      // D · the star draws, the frosting falls onto the top
+      var st = K(t, 13000, 900) * (1 - outK(100, 500));
+      setLine(c.star.line, st, 1);
+      c.star.mesh.userData.fade = st > 0.98 ? 1 : 0;
+      var sp = t > 21500 && t < 22600 ? (t - 21500) / 1100 : -1;                 // E · one spin during the hold
+      c.starG.rotation.y = sp >= 0 ? ease(sp) * Math.PI : 0;
+      c.starG.position.y = c.T1.h + 0.003 + (sp >= 0 ? Math.sin(sp * Math.PI) * 0.05 : 0);
+      s.fall.forEach(function (fl) {
+        var C = 3000, tt = t - 14000 - fl.ph * C, on = 0, y = 0, sc = 1, bead = 0, by = fl.by;
+        if (tt > 0 && (tt - (tt % C)) <= 17000 - 14000 - fl.ph * C) {
+          var u = (tt % C) / C;
+          if (u < 0.25) { var a = u / 0.25; y = (1 - a * a) * 1.1 * s.LEN / 0.385 * 0.7; on = ease(u / 0.06); bead = on; }
+          else if (u < 0.85) { on = 1; var e = ease((u - 0.55) / 0.3); sc = 1 - e; by = fl.by * (1 - e); bead = 1 - ease((u - 0.78) / 0.07); }
+        }
+        fl.m.visible = on > 0.002 && sc > 0.002;
+        fl.m.position.set(fl.x, c.T1.h + 0.002 + y, fl.z);
+        fl.m.scale.set(TUNE.lines.px / PPW, Math.max(0.001, sc), 1);
+        fl.m.rotation.y = -root.rotation.y;
+        fl.m.material.uniforms.uOpacity.value = on;
+        if (fl.b) { fl.b.position.set(fl.x, c.T1.h + 0.002 + y + by, fl.z); setDot(fl.b, on > 0.002 && sc > 0.002 ? bead : 0); fl.b.scale.setScalar(dotR); }
+      });
+      // E · drawing 1: the beads pop in one by one, two beads slide down the drips
+      c.beads.forEach(function (d, i) {
+        var k = K(t, 19000 + i * 140, 220) * (1 - outK(0, 250));
+        setDot(d, k > 0.01 ? 1 : 0); d.scale.setScalar(dotR * (0.4 + 0.6 * k));
+      });
+      c.riders.forEach(function (r, i) {
+        var u = ((t - 19500) / 2800 + i * 0.5 + r.y0 / r.dr.len) % 1;
+        r.d.position.y = r.dr.P.y - u * r.dr.len;
+        var on = t > 19500 && o < 0 ? 1 : 0;
+        setDot(r.d, on * ease(u / 0.12) * (1 - ease((u - 0.85) / 0.15)) * K(t, 19500, 400)); r.d.scale.setScalar(dotR);
+      });
+    }
     /* --- cake: still (hero, shortlist) — mouse turns it, hover lifts a tier, the star spins, drips flow --- */
-    if (parts.cake) {
+    if (parts.cake && !STORY) {
       var c = parts.cake;
       c.board.grp.position.y = c.board.grp.userData.lift;
       c.T0.grp.position.y = c.T0.grp.userData.lift;
@@ -977,9 +1166,11 @@
     var dt = Math.min(0.05, (now - last) / 1000) * (reduced ? 0 : TUNE.motion.speed);
     last = now; clock += dt;
     if (LOOP) { T += dt * 1000; if (T >= LOOP) T -= LOOP; }
-    var t = LOOP ? (reduced ? 6000 : T) : 0;
+    var t = LOOP ? (reduced ? (STORY ? 22000 : 6000) : T) : 0;
+    if (STORY) camAt(t);
     dashOff += dt * TUNE.drips.flow * 0.6;
     if (segMode && !LOOP) { clock = T / 1000; dashOff = (T % AMB) / AMB * 0.034 * 9; }   // seamless ambient loop for the capture
+    if (STORY) frame();
     var dotR = TUNE.dots.px / PPW / 2;
 
     mouse.cx += (mouse.x - mouse.cx) * 0.055;
