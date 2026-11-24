@@ -28,8 +28,8 @@ for d in $V/*/; do
     if [ -n "$scene" ]; then
       # WebGL: loop length per slot (ms; 0 = a still: the slice hero and the held shortlist)
       case "$scene:$s" in
-        # classic-3d (cake-3d-classic.js): the still hero/shortlist loop their ambient motion (api.loop(): 8.4 s)
-        classic:hero|classic-light:shortlist) ms=8400 ;; classic-light:step-1) ms=10400 ;;
+        # classic-3d (cake-3d-classic.js): the still hero/shortlist loop their ambient motion (api.loop(): 4.2 s, light WebPs)
+        classic:hero|classic-light:shortlist) ms=4200 ;; classic-light:step-1) ms=10400 ;;
         classic-light:step-2) ms=11600 ;; classic-light:step-3) ms=11200 ;;
         cake-3d:hero) ms=27900 ;; cake-3d-slice:hero) ms=0 ;;
         *:shortlist) ms=0 ;; *:step-1) ms=9300 ;; *:step-2) ms=10700 ;; *:step-3) ms=11200 ;;

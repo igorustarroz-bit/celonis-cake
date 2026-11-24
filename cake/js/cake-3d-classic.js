@@ -847,7 +847,7 @@
 
   /* ---------- render loop ---------- */
   var running = false, last = performance.now(), clock = 0, T = 0;
-  var segMode = false, AMB = 8400;          // still scenes: ambient loop (2 star spins, one bead slide, 18 dash periods)
+  var segMode = false, AMB = 4200;          // still scenes: ambient loop (1 star spin, one bead slide, 9 dash periods) — short, light WebPs
   var _wp = new THREE.Vector3();
   function clamp01(t) { return t < 0 ? 0 : (t > 1 ? 1 : t); }
   function ease(t) { t = clamp01(t); return t * t * (3 - 2 * t); }
@@ -867,7 +867,7 @@
       });
       setLine(c.board.rim, 1, 1);
       setLine(c.star.line, 1, 1);
-      // seg mode (WebP capture): the ambient loop is a function of time — a spin every 4.2 s, AMB long
+      // seg mode (WebP capture): the ambient loop is a function of time — a spin every 4.2 s (= AMB)
       var sp = segMode ? ((T % 4200) < 1100 ? (T % 4200) / 1100 : -1) : (spin.busy ? spin.p : -1);
       c.starG.rotation.y = (segMode ? 0 : spin.a) + (sp >= 0 ? ease(sp) * Math.PI : 0);
       c.starG.position.y = c.T1.h + 0.003 + (sp >= 0 ? Math.sin(sp * Math.PI) * 0.05 : 0);
@@ -979,7 +979,7 @@
     if (LOOP) { T += dt * 1000; if (T >= LOOP) T -= LOOP; }
     var t = LOOP ? (reduced ? 6000 : T) : 0;
     dashOff += dt * TUNE.drips.flow * 0.6;
-    if (segMode && !LOOP) { clock = T / 1000; dashOff = (T % AMB) / AMB * 0.034 * 18; }   // seamless ambient loop for the capture
+    if (segMode && !LOOP) { clock = T / 1000; dashOff = (T % AMB) / AMB * 0.034 * 9; }   // seamless ambient loop for the capture
     var dotR = TUNE.dots.px / PPW / 2;
 
     mouse.cx += (mouse.x - mouse.cx) * 0.055;

@@ -96,7 +96,7 @@ def videoize(h, imgdir):
 
 
 WEBGL_CSS = ['tuner-ui.css?v=1', 'cake-3d.css?v=3']
-CLASSIC_JS = 'cake-3d-classic.js?v=2'
+CLASSIC_JS = 'cake-3d-classic.js?v=3'
 WEBGL_JS = ['tilt-parallax.js?v=1', 'anime.umd.min.js?v=1', 'three.min.js?v=1', 'three-post.js?v=1',
             'tuner-ui.js?v=4', 'cake-3d.js?v=27', 'cake-3d-tuner.js?v=27']
 
