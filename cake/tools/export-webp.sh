@@ -28,13 +28,20 @@ for d in $V/*/; do
     if [ -n "$scene" ]; then
       # WebGL: loop length per slot (ms; 0 = a still: the slice hero and the held shortlist)
       case "$scene:$s" in
+        # classic-3d (cake-3d-classic.js): the still hero/shortlist loop their ambient motion (api.loop(): 8.4 s)
+        classic:hero|classic-light:shortlist) ms=8400 ;; classic-light:step-1) ms=10400 ;;
+        classic-light:step-2) ms=11600 ;; classic-light:step-3) ms=11200 ;;
         cake-3d:hero) ms=27900 ;; cake-3d-slice:hero) ms=0 ;;
         *:shortlist) ms=0 ;; *:step-1) ms=9300 ;; *:step-2) ms=10700 ;; *:step-3) ms=11200 ;;
       esac
       f="$TMP/$slug-$s"; mkdir -p "$f"
       node $T/capture-webgl.js "$slug" "$s" "$ms" 15 "$f"
       grey=255; [ "$s" = shortlist ] && grey=245          # canvas is multiplied onto the module (#f5f5f5)
-      if [ "$ms" = 0 ]; then still "$f/0000.png" "$out" $grey; else anim "$f" "$out"; fi
+      if [ "$ms" = 0 ]; then still "$f/0000.png" "$out" $grey
+      else
+        [ "$grey" != 255 ] && for fr in "$f"/*.png; do still "$fr" "$fr" $grey; done   # animated shortlist: same module grey
+        anim "$f" "$out"
+      fi
     elif [ -f "$d/img/$s.mp4" ]; then
       # 16:9 clip shown "contain" in a 4:3 box on the module's background (black hero, #f5f5f5 shortlist, white steps)
       bg=white; [ "$s" = hero ] && bg=black; [ "$s" = shortlist ] && bg=0xf5f5f5

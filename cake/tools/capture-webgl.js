@@ -22,7 +22,8 @@ const [ver, slot, total, fps, out] = process.argv.slice(2);
     if (+total) await p.evaluate(([slot, t]) => {
       window.CAKE3D.motion.speed = 0.0001;
       const api = window.__cake3dAll.find(a => a.slot === slot);
-      if (slot === 'hero') { const tl = api.timeline(); tl.pause(); tl.seek(t); } else api.seg(t);
+      const tl = slot === 'hero' && api.timeline && api.timeline();
+      if (tl) { tl.pause(); tl.seek(t); } else api.seg(t);   // classic-3d hero: no timeline, seg() drives its ambient loop
     }, [slot, t]);
     await raf2();
     // read the canvas right after a render, in the same frame (much faster than a page screenshot)

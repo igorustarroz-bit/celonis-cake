@@ -1,0 +1,15 @@
+{
+  "webgl": {
+    "hero": "classic",
+    "shortlist": "classic-light",
+    "step-1": "classic-light",
+    "step-2": "classic-light",
+    "step-3": "classic-light"
+  },
+  "hero": "m35",
+  "order": 5,
+  "slug": "classic-3d",
+  "label": "Classic 3D — M35 hero (WebGL)",
+  "description": "The four original line drawings rebuilt in 3D on their own measurements, animated like the glass versions, on the new M35 detail page hero. Hero: drawing 1 in black and white (white lines and beads, a flat black fill that only hides what is behind), still, turning with the mouse (gyroscope on phones); hover lifts the board or a tier, hover on the star spins it; the dashed drips flow. White modules, black line: the shortlist holds the same cake; Step 1 draws the data frame (rings, rays bead-first, frame) and undraws it in sequence; Step 2 lays the three rims one by one with their dashed drips, then drips them off; Step 3 builds board, tier and star and lets the frosting fall onto the top. Tuner: press T.",
+  "date": "2026-11-24"
+}

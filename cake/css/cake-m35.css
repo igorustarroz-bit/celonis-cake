@@ -1,0 +1,32 @@
+/* =========================================================================
+   Cake — M35 · Detail page hero (versions whose version.json says "hero": "m35").
+   The site's own `detail-page-hero` block (css/detail-page-hero.css, unchanged)
+   with the markup of celonistvibecoding experiments/3d-book; these are the few
+   differences of the Figma (FY27 New pages, node 6334:1234):
+   – grey overtitle "The BEST" above the white title (block: .overtitle)
+   – no back button, a single "English" label
+   – the 3:2 media slot holds the illustration on the black hero, no box (Igor)
+   – rating line under the body copy
+   ========================================================================= */
+.detail-page-hero-container .detail-page-hero .titles-container .overtitle { display: block; }
+.detail-page-hero-container .detail-page-hero .titles-container .title { font-weight: 400; }
+/* the Figma's 12 px square before the body copy (the site's .white-square is 10 px) */
+.detail-page-hero p.detail-text-content.white-square::before { width: 12px; height: 12px; }
+.detail-page-hero .cake-hero-rating { display: block; margin-top: var(--fnd-spacing-06, 24px); }
+.detail-page-hero .cake-hero-rating .stars { letter-spacing: 1px; }
+
+/* media: the illustration slot, 3:2 like the block's picture, transparent */
+.detail-page-hero .detail-page-hero-media-container .cake-3d-stage,
+.detail-page-hero .detail-page-hero-media-container picture {
+  aspect-ratio: var(--fnd-image-ratio-3-2, 3 / 2); width: 100%; margin: 0 0 var(--fnd-spacing-08) 0;
+  background: transparent; border-radius: 0; overflow: visible;
+}
+.detail-page-hero .detail-page-hero-media-container .cake-3d-stage canvas,
+.detail-page-hero .detail-page-hero-media-container img {
+  border-radius: 0; object-fit: contain; aspect-ratio: auto;
+}
+.detail-page-hero .detail-page-hero-media-container.cake-media-invert img { filter: invert(1); }
+@media (width >= 1200px) {
+  .detail-page-hero .detail-page-hero-media-container .cake-3d-stage,
+  .detail-page-hero .detail-page-hero-media-container picture { margin-bottom: 0; }
+}

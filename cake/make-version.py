@@ -21,6 +21,10 @@ Usage (run from the celonis_cake folder):
       <canvas> rendered by js/cake-3d.js (glass cake, Three.js) with its tuner (key T);
       img/<slot>.png stays as the no-WebGL fallback. "cake-3d-light" = the same scene
       inverted for white modules, looping that slot's fragment of the hero timeline.
+      "classic", "classic-light" scenes (version classic-3d) use js/cake-3d-classic.js instead:
+      the four original drawings rebuilt in 3D.
+      Hero: "hero": "m35" in version.json swaps the M15 secondary hero for the M35
+      detail page hero (site block detail-page-hero + css/cake-m35.css).
       Refuses to overwrite an existing version (add --force to re-copy the page;
       the img/ folder is never overwritten).
 
@@ -92,6 +96,7 @@ def videoize(h, imgdir):
 
 
 WEBGL_CSS = ['tuner-ui.css?v=1', 'cake-3d.css?v=3']
+CLASSIC_JS = 'cake-3d-classic.js?v=2'
 WEBGL_JS = ['tilt-parallax.js?v=1', 'anime.umd.min.js?v=1', 'three.min.js?v=1', 'three-post.js?v=1',
             'tuner-ui.js?v=4', 'cake-3d.js?v=27', 'cake-3d-tuner.js?v=27']
 
@@ -119,6 +124,8 @@ def webglize(h, webgl):
     links = ''.join(f'<link href="../../css/{c}" rel="stylesheet"/>\n' for c in WEBGL_CSS if c not in h)
     h = h.replace('</head>', links + '</head>', 1)
     js = list(WEBGL_JS)
+    if any(v.startswith('classic') for v in webgl.values()):   # the original drawings in 3D (version classic-3d)
+        js = [CLASSIC_JS if j.startswith('cake-3d.js') else j for j in js]
     if 'cake-3d-slice' in webgl.values():                 # the slice hero's cream and cherry (from Igor's 0016.obj)
         js.insert(js.index(next(j for j in js if j.startswith('cake-3d.js'))), 'cake-3d-cream.js?v=1')
     scripts = ''.join(f'<script src="../../js/{j}"></script>\n' for j in js
@@ -129,8 +136,49 @@ def webglize(h, webgl):
     return h
 
 
-def page_from_template(slug, label, imgdir, webgl=None):
+# M35 · Detail page hero (version.json "hero": "m35"): the site's `detail-page-hero` block in place of the
+# M15 secondary hero. Markup from celonistvibecoding experiments/3d-book, adapted to the Figma (FY27 New pages,
+# node 6334:1234): grey overtitle, "English" label, Share in, two buttons, 3:2 media slot, body copy + rating.
+M35_HTML = """<!-- M35 · Detail page hero — the site's own `detail-page-hero` block (markup as in celonistvibecoding experiments/3d-book) -->
+<div class="section detail-page-hero-container" data-module="M35-Detail-page-hero" id="top">
+<div class="detail-page-hero-wrapper dark-base-theme">
+<div class="detail-page-hero block dark-base-theme no-back-button" data-block-name="detail-page-hero" data-block-status="loaded">
+<div>
+<div class="labels-container dark-secondary-theme"><div class="label"><span class="icon icon-icon-globe svg-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><use href="#icon-globe"></use></svg></span><span>English</span></div></div>
+<div class="detail-page-hero-title-and-links"><div class="titles-container"><p class="overtitle">The BEST</p><h1 class="title">Enterprise AI Transformation Recipe</h1></div>
+%LINKS%</div>
+<div class="detail-page-hero-media-container cake-media-invert">%MEDIA%</div>
+<p class="white-square square-l detail-text-content">Looking for a foolproof Enterprise AI transformation recipe your C-suite will love? You’ve come to the right place! We’re serving up old-fashioned flavor, mom-and-pop charm, and absolutely no skimping on the good stuff.<span class="cake-hero-rating"><span class="stars" aria-hidden="true">★★★★★</span> 5|1,401 ratings</span></p>
+%LINKS%</div>
+</div>
+</div>
+</div>
+"""
+M35_LINKS = ('<div class="detail-page-hero-links-area">'
+             '<p class="social-links-container"><span>Share in</span><a href="#">Linkedin</a><a href="#">X</a><a href="#">Facebook</a></p>'
+             '<div class="buttons-row"><p class="button-container"><a class="button" href="#ingredients" role="button"><span>Ingredients</span></a></p>'
+             '<p class="button-container"><a class="button secondary" href="#method" role="button"><span>Method</span></a></p></div></div>\n')
+
+
+def m35_hero(h):
+    """Swap the M15 secondary hero for the M35 detail page hero (keeps the hero's illustration <img>)."""
+    a = h.find('<!-- M15 ·'); b = h.find('<!-- M03 ·')
+    if a < 0 or b < a:
+        sys.exit('M35 hero: could not find the M15 block.')
+    m = re.search(r'<picture><img [^>]*src="img/cake-1\.png"[^>]*/></picture>', h[a:b])
+    if not m:
+        sys.exit('M35 hero: could not find the hero illustration.')
+    block = M35_HTML.replace('%LINKS%', M35_LINKS).replace('%MEDIA%', m.group(0))
+    h = h[:a] + block + h[b:]
+    h = h.replace('<link href="css/secondary-hero.css" rel="stylesheet"/>',
+                  '<link href="css/detail-page-hero.css" rel="stylesheet"/>', 1)
+    return h.replace('</head>', '<link href="css/cake-m35.css?v=1" rel="stylesheet"/>\n</head>', 1)
+
+
+def page_from_template(slug, label, imgdir, webgl=None, hero=None):
     h = TEMPLATE.read_text(encoding='utf-8')
+    if hero == 'm35':
+        h = m35_hero(h)
     # shared assets live two levels up
     h = re.sub(r'(href|src)="(css|js|fonts)/', r'\1="../../\2/', h)
     # the template's images, in page order: cake-1 (hero), cake-1 (shortlist), cake-2, cake-3, cake-4
@@ -167,7 +215,7 @@ def cmd_new(argv):
             shutil.copyfile(ORIGINALS / f'CEL1269 CCM Cookbook_{SEED[s]}.png', dst)
     meta = d / 'version.json'
     data = json.loads(meta.read_text()) if meta.exists() else {}
-    (d / 'index.html').write_text(page_from_template(slug, label, d / 'img', data.get('webgl')), encoding='utf-8')
+    (d / 'index.html').write_text(page_from_template(slug, label, d / 'img', data.get('webgl'), data.get('hero')), encoding='utf-8')
     if 'order' not in data:
         data['order'] = 1 + max([json.loads(q.read_text()).get('order', 0)
                                  for q in VERSIONS.glob('*/version.json') if q != meta] or [0])
